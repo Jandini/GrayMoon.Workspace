@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "workspace": {
+    "name": "GM",
+    "profile": {
+      "type": "basic",
+      "versioning": "gitVersion",
+      "ci": "githubActions"
+    }
+  },
+  "connectors": [
+    {
+      "type": "github",
+      "url": "https://github.com"
+    }
+  ],
+  "repositories": [
+    {
+      "name": "GrayMoon",
+      "repositoryUrl": "https://github.com/Jandini/GrayMoon.git",
+      "connectorUrl": "https://github.com"
+    },
+    {
+      "name": "GrayMoon.Desktop",
+      "repositoryUrl": "https://github.com/Jandini/GrayMoon.Desktop.git",
+      "connectorUrl": "https://github.com"
+    }
+  ]
+}
