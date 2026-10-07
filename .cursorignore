@@ -1,0 +1,16 @@
+﻿# Build output and vendored artifacts
+artifacts/
+bin/
+obj/
+node_modules/
+*.dll
+*.br
+*.gz
+
+# Claude worktrees (duplicated source tree)
+.claude/worktrees/
+
+# Non-code sibling folders
+GrayMoon.wiki/
+GrayMoon.docs/
+GrayMoon.Release/

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "workspace": {
-    "name": "GM",
+    "name": "GrayMoon",
     "profile": {
-      "type": "basic",
+      "type": "dotNetDependency",
       "versioning": "gitVersion",
       "ci": "githubActions"
     }

@@ -2,3 +2,11 @@
 /GrayMoon/
 /GrayMoon.Desktop/
 # </graymoon-repositories>
+
+# Visual Studio 2015/2017 cache/options directory
+.vs/
+
+# Non-code sibling folders
+GrayMoon.wiki/
+GrayMoon.docs/
+GrayMoon.Release/
