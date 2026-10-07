@@ -1,0 +1,6 @@
+{
+  "include": [
+    "GrayMoon/",
+    "GrayMoon.Desktop/"
+  ]
+}
