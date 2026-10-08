@@ -31,10 +31,10 @@
     "cursor"
   ],
   "tools": [
+    "explorer",
+    "cursor",
     "terminal",
     "claudeCli",
-    "vsCode",
-    "cursor",
-    "explorer"
+    "vsCode"
   ]
 }
