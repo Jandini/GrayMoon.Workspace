@@ -26,12 +26,15 @@
       "connectorUrl": "https://github.com"
     }
   ],
-  "tools": [
-    "cursor",
-    "explorer"
-  ],
   "recentOpenInTools": [
     "claudeCli",
     "cursor"
+  ],
+  "tools": [
+    "terminal",
+    "claudeCli",
+    "vsCode",
+    "cursor",
+    "explorer"
   ]
 }
