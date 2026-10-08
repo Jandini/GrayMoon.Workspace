@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "version": 1,
   "workspace": {
     "name": "GrayMoon",
     "profile": {
@@ -25,5 +25,12 @@
       "repositoryUrl": "https://github.com/Jandini/GrayMoon.Desktop.git",
       "connectorUrl": "https://github.com"
     }
+  ],
+  "tools": [
+    "cursor",
+    "explorer"
+  ],
+  "recentOpenInTools": [
+    "cursor"
   ]
 }
