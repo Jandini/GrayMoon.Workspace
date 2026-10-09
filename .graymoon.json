@@ -31,10 +31,7 @@
     "cursor"
   ],
   "tools": [
-    "explorer",
     "cursor",
-    "terminal",
-    "claudeCli",
-    "vsCode"
+    "claudeCli"
   ]
 }
