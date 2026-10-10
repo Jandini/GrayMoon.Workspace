@@ -1,0 +1,21 @@
+---
+description: After a feature, bug fix, or other product change, update GrayMoon.Desktop/README.md
+alwaysApply: true
+---
+
+# Update the Desktop README
+
+When a task that builds a feature, fixes a bug, or otherwise changes product behavior is finished, update `GrayMoon.Desktop/README.md` before you report the task complete.
+
+Add one bullet at the top of `## Recent GrayMoon changes`, above the existing bullets. Describe what the user sees and why. Do not list files.
+
+- Lead with a bold phrase, then an em dash is not used: use ` - `.
+- Name the screens, buttons, and messages the user sees.
+- End with what stayed the same. If Desktop itself did not change, end with: `Nothing else changes for users, and Desktop needs no changes.`
+- If the App and the Worker both changed and ship together, say so in that closing sentence.
+
+```markdown
+- **Opening a tool shows "Starting ..." and that button stays disabled until the toast closes** - clicking an Open in... tool shows a toast such as "Starting Cursor...". That tool's button stays disabled while the toast is on screen. The pointer stays a pointer. Nothing else changes for users, and Desktop needs no changes.
+```
+
+Skip this update for questions, reviews, PR text, exploration, and edits that do not change product behavior. Do not add a second bullet when the task was only a README edit.
