@@ -26,12 +26,5 @@
       "connectorUrl": "https://github.com"
     }
   ],
-  "recentOpenInTools": [
-    "claudeCli",
-    "cursor"
-  ],
-  "tools": [
-    "cursor",
-    "claudeCli"
-  ]
+  "codegraph": true
 }
