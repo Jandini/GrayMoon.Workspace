@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Workspace layout
 
-`C:\Workspace\GrayMoon` is a thin **workspace repository** (its own `.git`, one commit, `.graymoon.json` + `GitVersion.yml`) that sits on top of several independent sibling repositories developed together. The sibling folders are git-ignored by the root repo, so root `git status` never shows their changes - run git inside the relevant folder.
+`C:\Workspace\GrayMoon` is a thin **workspace repository** (its own `.git`, one commit, `graymoon.json` + `GitVersion.yml`) that sits on top of several independent sibling repositories developed together. The sibling folders are git-ignored by the root repo, so root `git status` never shows their changes - run git inside the relevant folder.
 
 | Folder | What it is | Git repo? |
 |---|---|---|
@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `GrayMoon.Release/` | Public landing repo for Desktop downloads, updates and release notes (just a README). Not code. | Yes, own `.git` |
 | `GrayMoon.wiki/` | Local checkout of the GitHub wiki (user-facing docs) for the `GrayMoon` repo. Not code. | Wiki repo |
 
-`.graymoon.json` lists the two code repositories (`GrayMoon`, `GrayMoon.Desktop`) managed as the workspace; the `<graymoon-repositories>` block in `.gitignore` is maintained from it, so don't hand-edit that block. `.cursorignore` excludes the wiki and the (non-existent here) `GrayMoon.docs/` from indexing.
+`graymoon.json` lists the two code repositories (`GrayMoon`, `GrayMoon.Desktop`) managed as the workspace; the `<graymoon-repositories>` block in `.gitignore` is maintained from it, so don't hand-edit that block. `.cursorignore` excludes the wiki and the (non-existent here) `GrayMoon.docs/` from indexing.
 
 There is no root-level build, solution, or dependency file - always operate from inside the relevant sub-repo.
 
