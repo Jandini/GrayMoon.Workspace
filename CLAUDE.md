@@ -17,6 +17,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 There is no root-level build, solution, or dependency file - always operate from inside the relevant sub-repo.
 
+### Feature worktrees
+
+A GrayMoon feature (for example `~/.graymoon/GrayMoon/features/<name>/`) has the same layout, but each folder is a git worktree. The root is a worktree of the workspace repo, and `GrayMoon/` and `GrayMoon.Desktop/` each contain a `.git` file that points to `C:/Workspace/GrayMoon/<repo>/.git/worktrees/...`. Stay inside the feature folder, and run git per sub-repo there. Don't `cd` back to `C:\Workspace\GrayMoon`. The branch is set separately in each worktree.
+
 ## Which CLAUDE.md applies
 
 - Working in `GrayMoon/` -> see `GrayMoon/CLAUDE.md` and `GrayMoon/AGENTS.md` for build/test commands, coding rules and the App/Worker architecture summary.
@@ -30,6 +34,8 @@ Each code repository keeps exactly one documentation folder, the current-state a
 - `GrayMoon.Desktop/docs/architecture/` (start at `README.md`)
 
 Do not add design notes, implementation prompts, reviews or analyses anywhere in these repositories (including this workspace root). When behavior changes, update the relevant architecture document in the same change. Repository `README.md` files stay user/developer facing and link to the architecture folder.
+
+After any feature, bug fix or other change to product behavior, add one bullet at the top of `## Recent GrayMoon changes` in `GrayMoon.Desktop/README.md`, or edit the existing bullet for that feature. The full style is in `.cursor/rules/update-desktop-readme.mdc`: start with a bold phrase, then ` - ` (ASCII hyphen), describe what the user sees and why, and finish with what stayed the same. Skip this for questions, reviews, refactors, tests and documentation-only edits.
 
 ## Never commit or push without an explicit request
 
