@@ -28,12 +28,12 @@ A GrayMoon feature (for example `~/.graymoon/GrayMoon/features/<name>/`) has the
 
 ## Documentation
 
-Each code repository keeps exactly one documentation folder, the current-state architecture reference:
+Each code repository keeps a current-state architecture reference:
 
 - `GrayMoon/docs/architecture/` (start at `README.md`)
 - `GrayMoon.Desktop/docs/architecture/` (start at `README.md`)
 
-Do not add design notes, implementation prompts, reviews or analyses anywhere in these repositories (including this workspace root). When behavior changes, update the relevant architecture document in the same change. Repository `README.md` files stay user/developer facing and link to the architecture folder.
+Proposals and design notes for work not yet built go in `GrayMoon/docs/todo/`. When behavior changes, update the relevant architecture document in the same change. Repository `README.md` files stay user/developer facing and link to the architecture folder.
 
 After any feature, bug fix or other change to product behavior, add one bullet at the top of `## Recent GrayMoon changes` in `GrayMoon.Desktop/README.md`, or edit the existing bullet for that feature. The full style is in `.cursor/rules/update-desktop-readme.mdc`: start with a bold phrase, then ` - ` (ASCII hyphen), describe what the user sees and why, and finish with what stayed the same. Skip this for questions, reviews, refactors, tests and documentation-only edits.
 
