@@ -39,7 +39,7 @@ After any feature, bug fix or other change to product behavior, add one bullet a
 
 ## Never commit or push without an explicit request
 
-Never run `git commit` or `git push` (or stage, tag, amend, or open a pull request) in any of these repositories unless the user explicitly asks for that exact action in the current message. Requests like "update the README", "fix it" or "let me build it" are not requests to commit or push. Leave changes uncommitted and give a short commit message in a fenced code block instead (see `GrayMoon/AGENTS.md`).
+Never run `git commit` or `git push` (or stage, tag, amend, or open a pull request) in any of these repositories unless the user explicitly asks for that exact action in the current message. Requests like "update the README", "fix it" or "let me build it" are not requests to commit or push. Leave changes uncommitted.
 
 ## Combined development
 
