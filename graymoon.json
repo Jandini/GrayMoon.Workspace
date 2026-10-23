@@ -1,7 +1,6 @@
 {
   "version": 1,
   "workspace": {
-    "name": "GrayMoon",
     "profile": {
       "type": "basic",
       "versioning": "gitVersion",
