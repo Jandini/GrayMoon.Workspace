@@ -171,6 +171,7 @@ Do not assume any cadence is fast enough: Phase 0 and Phase 4 measure the 20-rep
 7. No duplicate or unbounded scans, no orphan subscriptions, no snapshot version regressions, no cross-context mix-ups.
 8. Logs explain why each watcher was created, touched-recovered, degraded, removed and reconciled, with workspace/context/repository identity and durations.
 9. No UX change; manual Refresh, mutation flows and background notifications unchanged.
+10. The Changes nav dot (`ChangesNotificationDot`) needs no change but is covered by acceptance: it reads only the persisted projection (`HasAnyChangesAsync`) and refreshes on `IWorkspaceGitChangesNotifier`, so it is exactly as current as the Changes page. With a watcher dead or evicted, the dot must flip within the audit interval after an agent edit (and clear after an external commit), in the main Workspace and in Feature contexts.
 
 ## 9. Risks and mitigations
 

@@ -191,6 +191,7 @@ Fast host (~20 repos) and VDI (~39 repos, several Features): route open, no inpu
 | Navigate away from the Workspace | Grace, then idle eviction; no leaked handles. |
 | Delete a Feature while the keeper runs | Removal wins; deletion succeeds; no resurrected watcher. |
 | Stage/commit/discard and post-sync mutation | Existing realtime behavior unaffected. |
+| Watcher killed or evicted, agent edits files (nav dot) | Nav dot turns on within the audit interval and off after an external commit; no UI change. Verify the audit result reaches `IWorkspaceGitChangesNotifier.Publish` through the write queue. |
 
 ### Measurements
 
