@@ -1,195 +1,204 @@
-# GrayMoon Git Changes — Reliable Watcher Lifecycles and Self-Healing Monitoring
+# GrayMoon Git Changes - Reliable Watcher Lifecycles and Self-Healing Monitoring
 
-**Status:** Proposed design; code inspected, implementation not started  
-**Date:** 2026-10-27  
-**Scope:** App ↔ Worker Git Changes monitoring; all Workspace and Feature contexts  
-**Baseline:** `Jandini/GrayMoon`, `main`, files inspected on 2026-10-27 (GitHub links below reference inspected commit `3731b5c1e5068da2a552167134efa48c5080bae2`).
+**Status:** Proposed design (revision 2); code re-inspected on branch `change-file-watchers` (HEAD `106b918`), implementation not started
+**Date:** 2026-10-27
+**Scope:** App <-> Worker Git Changes monitoring; every Workspace and Feature context
+**Companions:** [Implementation plan](GRAYMOON_WATCHER_RELIABILITY_IMPLEMENTATION_PLAN.md), [Bootstrap prompt](GRAYMOON_WATCHER_RELIABILITY_BOOTSTRAP.md)
 
 ## 1. Executive decision
 
-**Maintain the existing 10-minute idle watcher eviction, but decouple watcher renewal from Git status scans and guarantee automatic reconciliation after coverage gaps.** Workspace presence—not mouse movement or keyboard activity—determines whether to keep monitoring. Treat a full scan as a **correctness/audit** operation, not a lease-renewal operation. No UI changes are in scope.
+**Keep the 10-minute idle watcher eviction. Stop using a Git status scan as the watcher keepalive. Replace the sequential "scan everything every 3 minutes" sweep with two independent, individually time-boxed loops: a Git-free keeper and a staggered audit.** Workspace route presence - not mouse or keyboard activity - decides whether watchers are kept. No UI changes.
 
-The issue was seen in **two environments**:
-
-- A roughly **20-repository fast machine**, with fast local Git operations.
-- A roughly **39-repository enterprise VDI** with relatively expensive Git operations.
-
-Consequently, **slow Git scanning is a plausible amplifier, not a demonstrated root cause**. The first engineering milestone must reproduce and instrument the failure in both modes. The design must cover lifecycle races, route/circuit presence, Worker restarts/reconnects, watcher setup failures, silent delivery losses, and expiry—not just performance.
+The symptom was seen on two machines: a fast ~20-repository machine and a ~39-repository enterprise VDI with expensive Git operations. Slow Git is therefore a plausible amplifier, not the established cause; the design must be correct on the fast machine too.
 
 ### Non-negotiable user contract
 
-> Leave GrayMoon showing any page of Workspace A while an AI agent edits its repositories for 30, 60, or 120 minutes. When changes occur, they are reflected automatically. Returning to the app must reconcile anything missed, without the user pressing **Refresh**.
+> Leave GrayMoon showing any page of Workspace A while an AI agent edits its repositories for 30, 60 or 120 minutes. Changes appear automatically. Returning to the app reconciles anything missed without pressing **Refresh**.
 
-A workspace explicitly left and not viewed by any circuit may still age out and release OS handles after the configured grace. Manual Refresh remains available, unchanged.
+A workspace that nobody views may still age out and release OS handles after the configured grace. Manual Refresh stays unchanged.
 
-## 2. Verified current behavior and gaps
+### Three separate contracts
 
-| Component | Confirmed behavior | Reliability consequence |
+1. **Keeping** a watcher alive (lease/expiry).
+2. **Verifying** the watcher is actually functioning (health).
+3. **Confirming** the persisted projection is current (reconciliation/audit).
+
+Today all three are collapsed into one operation (a full status scan every 3 minutes). That is why the current sweep is both the keepalive and, implicitly, the only safety net. Removing the scan from the keepalive removes the safety net, so the audit in Plane B is a required replacement, not an extra.
+
+## 2. Verified current behavior (read from code)
+
+| Component | Verified behavior | Consequence |
 |---|---|---|
-| `WorkspaceGitChangesActivityBinder` / `WorkspaceGitChangesRouteActivity` | Layout-level route subscription while under `/workspaces/{id}/...`; same-workspace navigation keeps the subscription. | **Intended** to stay active with the page open, independently of 20-second UI idleness. Circuit loss/disposal is a different event and requires reconnection recovery. |
-| `WorkspaceGitChangesActivityTracker` | `RefCount > 0` means active; after last release, workspace remains active for 8 minutes by default. | Does **not** time out an intact reference merely because no mouse events arrive. However, an undisposed stale reference can remain active indefinitely; presence ≠ verified circuit health. |
-| `GitChangesMonitoringBackgroundService` | Sequentially enumerates active workspaces and **all their contexts**, calls status scans, then waits the 3-minute renewal delay. | Sweep duration is additive to the delay. Long-running scans, queued commands, blocked contexts, or failures can delay actual renewal; all contexts may be rescanned needlessly. |
-| `GetGitChangeStatusCommand` | Registers path attribution; calls `watcherManager.Acquire(repoPath)` and retains a short-lived lease **during a Git status scan**. | Watcher keepalive is tied to an expensive operation and Worker command processing. |
-| `GitRepositoryWatcherManager` | Disposes entries 10 minutes after final lease release, pruning coordinator/cache/registry. | **Intentional idle eviction**; should remain for inactive workspaces. Critical concurrency race exists between the idle timer callback and a new `Acquire` (see §3). |
-| `GitRepositoryWatcher` | Starts work-tree and `.git` watchers; `OnError` disposes and attempts restart; `Start()` catches/logs exceptions. | A restart/startup failure may leave a manager entry existing but its actual OS watchers unavailable; acquire alone is not a healthy-watcher guarantee. |
-| `GitChangesSnapshotPublisher` | Publishes fresh snapshots via Worker→App SignalR; **returns without buffering when disconnected**. | A gap in delivery can leave SQLite stale even when a watcher and scan were healthy. |
-| Changes page | Renders persisted SQLite projection and listens for broadcast. Opening page does not itself force a Worker scan. | Automatic reconciliation must update the projection through the existing queue; page refresh alone is insufficient. |
-| `AppActivityStateService` / `idleActivity.js` | Switches Active/Idle after 20 seconds, Hidden on visibility change. | Separate from workspace lease lifetime. Can be reused for a **resume audit signal**, not for deciding whether OS watchers live. |
+| `GitChangesMonitoringBackgroundService` | Waits 5 s, then loops: for each active workspace, for each non-paused context, `await scanner.ScanWorkspaceAsync(...)` **sequentially**; then waits `WatcherRenewalIntervalMinutes` (3, clamped below idle grace). Wakes early only on Worker `Online`. Returns silently when the Worker is disconnected. No per-context timeout. | Renewal period is `sweep duration + 3 min`. One slow or stalled context delays every later context and workspace. It is also today's only periodic audit: every active repository is rescanned every ~3 min plus sweep time. |
+| `GitChangesWorkspaceScanner.ScanCoreAsync` | One DB query and one path-resolution call per context, then one `GetGitChangeStatus` Worker command per repository, bounded by `MaxParallelRepositoryOperations`. Results go to the write queue with fire-and-forget `Enqueue`. | Reusable for target resolution (path + attribution). Each command waits up to `WorkerBridgeOptions.CommandTimeoutSeconds` (240 s). With the Worker read pool saturated, a 39-repo context can take many multiples of that. |
+| `WorkerBridge` | Per-command timeout 240 s; a timed-out call returns a failed response. | A lost response does not hang forever, but it can stall the sequential sweep for minutes per batch. |
+| `GetGitChangeStatusCommand` | Registers path attribution, `watcherManager.Acquire(repoPath)`, runs `RefreshNowAsync`, releases the lease on completion. | Keepalive is tied to a Git scan and to read-pool scheduling (`ReadOnlyCommands` in `SignalRConnectionHostedService`). |
+| `GitRepositoryWatcherManager` | One `Timer` per entry, started on last release, cancelled on `Acquire`. The timer callback checks `LeaseCount <= 0`, then `TryRemove` + `Dispose`, **outside `_createLock`**. `Release` and `Lease` are keyed by path string, and `Release` looks up the *current* entry for that key. | See failure mechanisms F4 and F5. |
+| `GitRepositoryWatcher` | `Start()` catches all exceptions and leaves fields null. `OnError` disposes both watchers, raises `Overflowed` (the manager then does `MarkDirty`, so overflow already triggers a rescan), then calls `Start()` again. The `.git` watcher exists only when `Directory.Exists(repo\.git)`. Default `InternalBufferSize` (8 KB). | A failed (re)start leaves a manager entry with no OS watcher and nothing retries it. Linked worktrees (Feature contexts) have a `.git` **file**, so they get no metadata watcher. |
+| `GitStatusRefreshCoordinator` | Watcher-driven scans run under `WatcherScanTimeoutSeconds` (120). A failed or timed-out watcher scan is logged and dropped. | A transient failure (slow VDI, locked index) leaves the persisted view stale until the next event or the next sweep. Once the sweep is gone, nothing else would repair it. |
+| `GitChangesSnapshotPublisher` | Returns without buffering when the hub connection is not `Connected`. | A disconnect window silently loses pushes. |
+| `GitChangesSnapshotPushHandler` | Rejects snapshots whose version is not greater than the persisted one (logged at Debug). Versions are seeded from `DateTime.UtcNow.Ticks`, so a restarted Worker outranks persisted state. | Worker restart ordering is already handled. Rejections are invisible at default log levels. |
+| `WorkspaceGitChangesActivation` | Warm-up scan only on **cold** activation (`!wasActive`) and only for the **special Workspace** context. | Re-entry within the 8-minute grace, and every Feature context, get no warm-up. |
+| `WorkspaceGitChangesActivityTracker` | `RefCount > 0` or last-active within `WorkspaceActivityGraceMinutes` (8). Independent of UI idle. | Presence is lost only when the lease is disposed, i.e. the circuit is disposed (no `DisconnectedCircuitRetentionPeriod` override found in `Program.cs`, so the Blazor default applies) or the user leaves the workspace. |
+| Git hooks | Do not call `MarkDirty`. Hooks drive repository state sync, not Changes. | Index changes in a linked worktree are not seen by the watcher (see F6). |
 
-Default settings from `GitChangesOptions`: `WatcherIdleGraceMinutes = 10`, `WatcherRenewalIntervalMinutes = 3`, `WorkspaceActivityGraceMinutes = 8`, `WatcherDebounceMilliseconds = 400`, `MaxParallelRepositoryOperations = 8`.
+Default `GitChangesOptions`: `WatcherIdleGraceMinutes = 10`, `WatcherRenewalIntervalMinutes = 3`, `WorkspaceActivityGraceMinutes = 8`, `WatcherDebounceMilliseconds = 400`, `WatcherScanTimeoutSeconds = 120`, `MaxParallelRepositoryOperations = 8`.
 
-**Observation is not proof of exact failure path.** We have code-level hazards but no timestamp-correlated incident logs or tested reproduction establishing which hazard explains the observed symptom.
+**No incident logs exist yet. Everything below is a code-level hazard, ranked by how well the code supports it, not a proven root cause.**
 
-### Inspected source anchors
+## 3. Failure mechanisms, ranked by evidence
 
-- [App background monitoring](https://github.com/Jandini/GrayMoon/blob/3731b5c1e5068da2a552167134efa48c5080bae2/src/GrayMoon.App/Services/GitChanges/GitChangesMonitoringBackgroundService.cs)
-- [App activity tracker](https://github.com/Jandini/GrayMoon/blob/3731b5c1e5068da2a552167134efa48c5080bae2/src/GrayMoon.App/Services/GitChanges/WorkspaceGitChangesActivityTracker.cs)
-- [Layout binder](https://github.com/Jandini/GrayMoon/blob/3731b5c1e5068da2a552167134efa48c5080bae2/src/GrayMoon.App/Components/Shared/WorkspaceGitChangesActivityBinder.razor)
-- [Worker watcher manager](https://github.com/Jandini/GrayMoon/blob/3731b5c1e5068da2a552167134efa48c5080bae2/src/GrayMoon.Worker/Services/GitChanges/GitRepositoryWatcherManager.cs)
-- [Worker watcher implementation](https://github.com/Jandini/GrayMoon/blob/3731b5c1e5068da2a552167134efa48c5080bae2/src/GrayMoon.Worker/Services/GitChanges/GitRepositoryWatcher.cs)
-- [Status command](https://github.com/Jandini/GrayMoon/blob/3731b5c1e5068da2a552167134efa48c5080bae2/src/GrayMoon.Worker/Commands/GetGitChangeStatusCommand.cs)
-- [Snapshot publisher](https://github.com/Jandini/GrayMoon/blob/3731b5c1e5068da2a552167134efa48c5080bae2/src/GrayMoon.Worker/Services/GitChanges/GitChangesSnapshotPublisher.cs)
-- [App snapshot persistence](https://github.com/Jandini/GrayMoon/blob/3731b5c1e5068da2a552167134efa48c5080bae2/src/GrayMoon.App/Services/GitChanges/GitChangesSnapshotPushHandler.cs)
+Reasoning anchor: while the sweep runs, every active repository is rescanned every ~3 min plus sweep time. A dead watcher alone therefore causes at most that much lag. A Changes view that stays stale for tens of minutes means the sweep stopped reaching that workspace, or its results were not applied.
 
-## 3. Distinct failure mechanisms to investigate
+| # | Mechanism | Evidence | Applies on fast machine? |
+|---|---|---|---|
+| F1 | **Sweep not reaching the workspace**: presence lost (circuit disposed, then 8 min grace), Worker `IsWorkerConnected == false` (silent return), sweep stalled behind a slow earlier context/workspace, or exception swallowed. | Code-visible; sequential, untimed, silent returns. | Presence/disconnect: yes. Stall: less likely. |
+| F2 | **Late renewal then eviction**: sweep duration + 3 min approaches 10 min when many contexts/repos are slow or the read pool is saturated. After eviction the next scan recreates the watcher, but the delay is already user-visible. | Code-visible arithmetic. | VDI mainly. |
+| F3 | **Results dropped**: publisher drops while disconnected; version gate rejects; write queue lag or failure. | Code-visible; rejections logged at Debug only. | Yes. |
+| F4 | **Lease-by-key stale release**: after eviction and recreation, an old `Lease` (still holding only the path key) decrements the **new** entry's count, possibly below zero, and can schedule disposal of an entry that is leased. | Code-visible, narrow timing. | Yes, rare. |
+| F5 | **Idle-timer vs Acquire race**: callback reads `LeaseCount <= 0`, `Acquire` increments, callback still removes and disposes. `Timer.Dispose()` does not wait for a running callback. | Code-visible, microsecond window. Real but unlikely to be the user-visible cause on its own. | Yes, rare. |
+| F6 | **Linked worktree has no metadata watcher**: `git add` / `commit` / `checkout` by an agent in a Feature context change `<main>/.git/worktrees/<name>/index|HEAD`, which no watcher of that context sees. Only working-tree events and the sweep catch it. | Code-visible (`Directory.Exists(repo\.git)` is false for a `.git` file). **Removing the sweep without fixing this regresses Feature contexts.** | Yes, any Feature. |
+| F7 | **Dead watcher entry**: `Start()` exception or failed `OnError` restart leaves null OS watchers behind a live manager entry; nothing retries. Heavy churn (build output, `node_modules`) overflows the 8 KB buffer and makes `OnError` more likely. | Code-visible. | Yes. |
+| F8 | **Dropped watcher-driven scan**: a timed-out or failed event scan is not retried; the persisted view stays stale until another event. | Code-visible. | VDI mainly. |
+| F9 | **Worker restart / reconnect**: watchers and registry are in-memory. Today recovered by a sweep on `Online`. | Code-visible. | Yes. |
+| F10 | **Removal races**: `IRepositoryAccess` release-before-delete is intentional; a keepalive must not resurrect a watcher for a claimed folder. | Existing guards in `Acquire`; must be preserved. | Yes. |
 
-1. **Idle timer / acquire race (code-visible):** `Acquire` uses `_createLock`; idle callback removes the entry outside that lock after checking `LeaseCount <= 0`. `Timer.Dispose()` does not wait for an already-running callback. A callback could observe `0`, an acquisition could then renew/increment, and the callback could still remove/dispose the now-leased entry. Correct with shared serialization and a lease/generation check.
-2. **Slow/failing sweep:** the next 3-minute delay starts *after* all scans. A fully active Workspace can miss its 10-minute deadline; this can also happen on a fast machine if Worker commands are blocked, a context fails, a process stalls, or App/Worker connectivity is interrupted.
-3. **Watcher health masking:** `Start()` can catch failure, leaving a manager entry; a future `Acquire` need not verify that both required FileSystemWatchers are functional. `.git` is a file in linked worktrees; confirm handling of metadata coverage as part of Phase 0 (not necessarily the idle symptom).
-4. **Worker reconnect/restart:** lost in-memory watchers and registrations must be recreated and rescanned, even when App-side workspace tracker still says active.
-5. **Delivery gap:** the publisher drops a disconnected notification. Only a later snapshot can make persisted state current; a healthy watcher lease alone cannot certify persisted completeness.
-6. **Route/circuit distinction:** the Desktop window can remain visibly open while the Blazor circuit disconnects/disposes; reconnection must re-establish desired subscriptions and ensure an authoritative snapshot, regardless of last-seen workspace grace.
-7. **Removal and feature lifecycle:** `IRepositoryAccess` intentionally releases watchers before removing worktrees. Do not fight removal, resurrect a claimed path, or monitor deleted Feature contexts; registration should reconcile only after a valid path returns.
-8. **Potential silent event loss:** FileSystemWatcher can overflow or fail; periodic assurance and foreground audit must not assume every event was delivered.
+Disambiguating F1 from the rest is the purpose of Phase 0 diagnostics.
 
 ## 4. Target architecture
 
-```mermaid
-flowchart LR
-  Browser["Workspace route present\nUI can be Idle/Hidden"] --> Tracker["App active-workspace tracker"]
-  Tracker --> Keeper["App watcher subscription coordinator\nfixed-cadence keepalive"]
-  Keeper -->|"batched lightweight Ensure/Touch"| Worker["Worker watcher manager"]
-  Worker --> FS["FileSystemWatcher per valid repo"]
-  FS -->|"change/overflow"| Refresh["Existing debounced Git status coordinator"]
-  Worker -->|"new / re-created / unhealthy / gap"| Reconcile["App reconciliation scheduler"]
-  Resume["Circuit/Worker reconnect, resume, audit timer"] --> Reconcile
-  Reconcile -->|"existing GetGitChangeStatus"| Refresh
-  Refresh --> Publisher["Existing snapshot publisher"]
-  Publisher --> Queue["App write queue + SQLite"]
-  Queue --> UI["Changes page live patch"]
+```text
+Workspace route present (UI may be Idle/Hidden)
+  -> WorkspaceGitChangesActivityTracker (unchanged presence source)
+  -> App Git Changes monitor (replaces the sweep service, behind a flag)
+       Keeper loop (no Git)  --EnsureGitChangesWatchers batch per context-->  Worker
+       Audit scheduler       --existing ScanRepositoriesAsync, single-flight-->  Worker GetGitChangeStatus
+  Worker: GitRepositoryWatcherManager (deadline-based expiry, health, Touch)
+       -> FileSystemWatcher -> existing GitStatusRefreshCoordinator -> existing publisher
+       -> App write queue -> SQLite -> Changes page (unchanged)
 ```
 
-### Plane A: presence and lease renewal — NO GIT
+### Plane A - keep: deadline-based lease, no Git
 
-- **Single owner:** App singleton monitoring coordinator maintains a per-workspace desired set of repositories for the active contexts. Existing route/binder/tracker remain the source of desired presence.
-- **Batch API:** introduce an `EnsureGitChangesWatchers` (name illustrative) Worker command, accepting a bounded set of workspace context/repository identities and canonical path-resolution inputs. It renews or creates watcher entries and idempotently maintains path→workspace/repository attribution. **Do not run `git status`, diff, line stats, filesystem sweeps, clone, fetch, or network requests in this command.** Minimal path existence, validation and watcher creation are permitted.
-- **Return per-entry health:** `HealthyExisting | HealthyCreated | RecreatedAfterGap | Unhealthy | Missing | UnderRemoval` plus a bounded `coverageGeneration`, `needsReconciliation`, and effective lease duration. Preserve structured errors; one invalid repository should not fail other entries.
-- **Low-risk implementation:** initially reuse existing `GitRepositoryWatcherManager.Acquire`/`Dispose` to renew the idle timer without changing its core lease ownership model. Introduce a safe manager method that atomically reports whether watcher was new and whether coverage is healthy. Only refactor manager internals enough to close race and represent health.
-- **Fixed cadence:** schedule renewal to a monotonic deadline, not `scan elapsed + interval`. Keep batch processing bounded; stagger large workspace sets. A slow reconcile never holds or delays the keeper. A delayed renew is retried with bounded jitter and logged. Do not let an unrelated failed Workspace/context stall other subscriptions.
-- **Worker busy behavior:** check actual Worker command scheduling. The control-plane renewal must not sit indefinitely behind long Git work; reuse an existing suitable lane or add a bounded, high-priority **control command path only if evidence shows starvation**. Do not change Push Updated's two-lane orchestration.
-- **No browser mouse heartbeat dependency:** retain watcher eligibility while a valid workspace route/circuit exists. Activity `Idle` or `Hidden` may reduce *audit* frequency but must not remove watchers by itself.
-- **App/Worker settings:** Worker returns its effective watcher grace so App can renew safely even when `App:GitChanges` and `Worker:GitChanges` settings differ; do not rely on clocks being identical across machines.
+**Worker manager redesign (replaces generation counters and per-entry timers):**
 
-### Plane B: data correctness, backfill and recovery — GIT only when needed
+- Each entry has `LeaseCount` and an `ExpiresAt` deadline from an injectable `TimeProvider`. A **single** manager-level sweeper (about every 30 s) removes entries with `LeaseCount == 0 && now >= ExpiresAt`, under the same lock `Acquire`/`Touch` use, and disposes the removed entries **outside** the lock. There is no per-entry `Timer`, so there is nothing to cancel and F5 cannot occur. Tests call `SweepExpired(now)` with a fake clock; no sleeps.
+- `Acquire` returns a lease that **captures the entry** (not the key). Releasing a lease whose entry is no longer the current one for that key is a no-op, and underflow is guarded (F4). Last release sets `ExpiresAt = now + grace`.
+- New `Touch(repoPath)` extends `ExpiresAt` without any lease, creating the entry if missing and retrying a failed watcher start (subject to cooldown). Keepalive therefore never accumulates lease counts or timers, and repeating it is idempotent.
+- Removal precedence is unchanged: `IsUnderRemoval` and `RegisterReleasable` win, and `Touch` returns `UnderRemoval` instead of recreating the watcher.
 
-- Continue using existing `GitStatusRefreshCoordinator`, `GetGitChangeStatus`, `GitChangesWorkspaceScanner`, `GitChangesSnapshotCache`, `GitChangesSnapshotPublisher`, and `WorkspaceGitChangesWriteQueue`. **No second Git status implementation or direct UI database writes.**
-- On a newly created/recreated watcher, Worker error/overflow, recovered connection, or known coverage gap, mark repository/context **needs reconciliation**; schedule a bounded authoritative `GetGitChangeStatus` through the existing scanner. Retries must be idempotent and coalesced by path/context.
-- On user return from a prolonged `Idle/Hidden` period, or circuit reconnection, schedule a stale-age-gated audit even if the watcher reports healthy. A **healthy OS watcher does not prove that all events were delivered**. Check all active relevant contexts, not just special Workspace.
-- Add a low-frequency, bounded **safety audit** while a workspace remains open, with a configurable conservative interval. Audit should use the existing snapshot mechanism; optionally optimize no-change persistence using existing digest/version semantics, but must not rely on a heuristic fingerprint that could miss untracked edits.
-- On Worker reconnect, first renew desired watchers and then reconcile. Do not depend on `wasActive` / 8-minute App grace to skip recovery.
-- Keep the persisted projection consistent when App/Worker SignalR notifications were dropped. Positive success means the **App write queue persisted** the resulting snapshot, not simply that an event was seen or a Worker command returned.
-- Snapshot generation ordering must remain valid after manager eviction and Worker restarts. Retain existing versioning contract; test snapshots arriving out of order and after reconnect. Do not reset persisted SQLite as a repair strategy.
-- No false promise of synchronous instant UI update. The contract is eventual automatic consistency with bounded recovery and observable failure, using the established scan concurrency limit.
+**`EnsureGitChangesWatchers` Worker command** (batch per context, `Touch` per repository):
 
-### Plane C: lifecycle cleanup, self-healing and logging
+- Does only: validate/resolve path with the existing `WorkerRepositoryPaths` helpers, register attribution in `GitChangesRepositoryRegistry`, `Touch`. **No Git process, no status scan, no network.**
+- Per-repository result: `Renewed | Created | Recovered | Degraded | Missing | UnderRemoval`, plus a response-level `workerInstanceId` and `effectiveGraceSeconds`. One bad repository never fails the batch. Wire fields are only what the App actually acts on; the App does not track per-repository "coverage generations".
+- **Routing:** run it in the read pool alongside `GetGitChangeStatus` (add to `ReadOnlyCommands`). That is where renewal runs today, so the new path is never worse, and the margin is large: renewal is attempted every 3 min against a 10 min grace, i.e. three attempts before expiry, each with a 30 s App-side timeout. Escalate to a dedicated lane only if Phase 0/4 measurements show renewal queue wait approaching the grace. Push Updated lanes are untouched.
+- App and Worker are version-locked, so there is no mixed-version fallback and no capability flag.
 
-- Keep 10-minute idle eviction for repositories not in the desired set. Preserve `IRepositoryAccess` release-before-delete and nested repository exclusions.
-- Every manager removal reason should be identifiable: `IdleExpired`, `ExplicitRemoval`, `WorkerShutdown`, `WatcherError`, `HealthFailure`, and `Recreated`; avoid conflating missing file data with no changes.
-- Watcher `Start()` and `OnError` must expose health. An entry whose work-tree watcher failed must be marked unhealthy and made recoverable by a later Ensure, including bounded retry/backoff. An error must mark coverage discontinuity even when restart fails.
-- Fix acquire/release/idle-callback synchronization with an entry generation and common lock (or provably equivalent atomic transition); disposal outside locks where callbacks might re-enter. Test the race deterministically with a controlled timer, not only sleeps.
-- Keep ref-count and grace behavior, but track effective circuit presence: do not let an abandoned circuit reference silently pin monitoring forever; any circuit-presence expiration must use disconnection evidence, **not simple UI inactivity**.
-- Instrument App sweep/presence decisions, Worker watcher lifecycle, scan completion, notification delivery and SQLite persistence with correlation metadata, without logging tokens or file contents.
+**App keeper loop:**
 
-## 5. State model and protocol semantics
+- A `PeriodicTimer` tick (fixed cadence; missed ticks are skipped, never queued) every `WatcherRenewalIntervalMinutes`. Per tick: for each active workspace, for each non-paused context, send one batch (chunked to a bounded size), up to a small bounded number of contexts concurrently, each call wrapped in its own timeout (default 30 s). A failure or timeout is logged and retried on the next tick; it never delays another context.
+- Targets come from one **shared target resolver** extracted from `ScanCoreAsync` (workspace root, workspace folder, repository names, repository paths, ids). Scan and keeper then share exactly one path/attribution implementation. No separate desired-set cache in the first version: one DB query and one path-resolution call per context per 3 minutes is cheap; add caching only if Phase 4 measurements justify it.
+- Idle/Hidden UI state never removes watchers. Workspaces with no viewer and grace expired are simply no longer sent; the Worker evicts them on schedule.
+- On Worker `Online`: send Ensure first, then request an audit (see Plane B).
 
-Minimal logical states per watched canonical path:
+### Plane B - verify: Worker self-healing plus an App audit
+
+**Worker side (zero new protocol):**
+
+- When `Touch` reports `Created`, `Recovered`, or the watcher recorded a discontinuity, the Worker calls `refreshCoordinator.MarkDirty(repoPath)` itself. The existing debounce, scan gate, snapshot cache and publisher then deliver the authoritative snapshot. The App does not need to be told about the gap to cause a rescan.
+- `Overflowed` already marks dirty; keep that. Add a bounded, backed-off retry for a **failed or timed-out watcher-driven scan** (for example 5 s, 30 s, 2 min, then stop and rely on the audit) so one transient failure no longer leaves a stale view (F8).
+- Raise `FileSystemWatcher.InternalBufferSize` to 64 KB to reduce overflow under agent churn (F7).
+- Watch the real index/HEAD location for linked worktrees by resolving the `gitdir:` pointer in the `.git` file (F6). Required **before** the sweep is retired.
+
+**App audit scheduler** (the replacement for the sweep's implicit audit):
+
+- Single-flight and coalesced per `(workspaceId, contextId)`; bounded parallelism; every scan wrapped in a timeout. It uses the existing `IGitChangesWorkspaceScanner.ScanRepositoriesAsync` and the existing write queue. No second scanner, no direct SQLite writes.
+- Triggers: (1) periodic, every `WatcherAuditIntervalMinutes` (new option, default 5, always cheaper than today's sweep because it only runs for active contexts and only one at a time per context; tune from Phase 0 data), staggered across contexts; (2) Worker `Online`; (3) **cold activation of a workspace for all its contexts** (today only the special Workspace is warmed); (4) return from a prolonged Idle/Hidden state (existing activity-state signal, cooldown ~2 min) for the contexts of the viewed workspace.
+- This is the explicit trade: today a silent miss is repaired within about 3 min plus sweep time by polling; after the change it is repaired within the audit interval. State this in release notes, and do not pick a faster cadence to hide a lifecycle defect.
+- **What "persisted" means:** a scan result being enqueued to the write queue is the success signal the App can observe. The design does not require the App to clear per-repository gap flags after confirmed persistence, because gaps are detected and repaired Worker-side and the audit is the backstop. A failed audit is logged and retried at the next trigger.
+- The Changes page needs no change; it keeps rendering the persisted projection.
+
+### Plane C - lifecycle cleanup and observability
+
+- 10-minute idle eviction stays for anything not touched. Every removal logs a reason: `IdleExpired`, `ExplicitRemoval`, `WorkerShutdown`, `WatcherError`, `Recreated`.
+- Watcher health is derived from the real OS watcher state (`_workTreeWatcher` created and raising events; metadata watcher where a metadata path exists), not from dictionary membership. `ActiveWatcherCount` keeps meaning "entries"; add a separate healthy count.
+- Reuse `GitRepositoryWatcherCoverage` (`StartedAt`, `LastDiscontinuityAt`, `EndedAt`) plus a per-process worker instance id for logging; do not invent a new generation counter.
+- Log (no secrets, no file contents): keeper tick start/end, entries sent and statuses, skipped/failed/timed-out contexts, planned vs actual tick time; audit trigger reason, duration, outcome; Worker watcher created/touched-recovered/degraded/removed with reason; scan failures and retries; publisher drop-while-offline; version-gate rejections raised from Debug to an anomaly-level (sampled) log.
+
+## 5. State model
 
 ```text
-Absent
-  └── Ensure + valid path → Starting → Healthy (needs reconciliation)
-Healthy
-  ├── Ensure → Healthy (lease renewed; NO Git scan)
-  ├── FS event → Healthy + existing scan coordinator invalidation
-  ├── watcher error/overflow → Degraded (gap)
-  ├── under removal → Released (do not recreate until path valid)
-  └── no renewed lease for grace → Absent (idle eviction)
-Degraded
-  └── Ensure/retry → Healthy (gap retained until authoritative reconciliation persisted)
+Absent --Touch/Acquire + valid path--> Starting --> Healthy (+ MarkDirty once)
+Healthy --Touch--> Healthy (ExpiresAt extended, no scan)
+Healthy --event--> Healthy (existing debounced scan)
+Healthy --OnError--> Discontinuity recorded, MarkDirty, restart
+        restart ok --> Healthy        restart fails --> Degraded
+Degraded --Touch (after cooldown)--> restart; ok --> Recovered (+ MarkDirty)
+Any --folder claimed for removal--> Released (never recreated while claimed)
+Any --LeaseCount == 0 and now >= ExpiresAt--> Absent (swept)
 ```
 
-**Generation rule:** `coverageGeneration` changes whenever uninterrupted watcher coverage is lost, including Worker restart (Worker instance ID changes), idle eviction/recreation, error/overflow, and explicit broker release. A successful keepalive must never clear `needsReconciliation` by itself.
-
-**Idempotence:** The same batch sent twice creates at most one watcher per canonical path and must not extend lease counts indefinitely. Avoid retaining a permanent `IDisposable` per heartbeat. Repeated requests update expiry/renewal while respecting in-flight operations.
-
-**Attribution:** Identical repository *names* across workspace contexts do not imply identical paths. Preserve the existing Worker path resolver and App path→context attribution. Normalize paths exactly once and avoid following deleted/recreated feature contexts. Keep `workspaceId`, `repositoryId`, and resolved path consistent with current snapshots.
-
-**Compatibility:** Ship App and Worker handler changes together. Keep existing `GetGitChangeStatus` flow intact and optionally behind a feature flag retain legacy monitoring sweeps as rollback while the new protocol stabilizes. Handle old/mismatched Worker versions safely using existing version policy.
+Idempotence: the same batch twice creates at most one watcher per canonical path and changes no lease counts. Attribution: identical repository names in different contexts are different paths; keep keying by the resolved path from the shared resolver.
 
 ## 6. Scheduling and performance policy
 
 | Work | Trigger | Git cost | Requirements |
 |---|---|---|---|
-| Lease keepalive | Active workspace; every ~3 min by default | **None** | Fixed cadence, independent of scan time and UI idleness; small bounded batch; acknowledge health. |
-| File event | FileSystemWatcher changed | Existing per-repo status cost | Debounce/coalesce; unchanged `MaxParallelRepositoryOperations` gate. |
-| Initial activation | First watcher creation / cold workspace | Existing bounded status scans | Scan once, not on every lease refresh. |
-| Coverage recovery | Recreated/error/Worker reconnect | Existing bounded status scans | Coalesce; prioritize affected repositories; persist before clearing gap. |
-| Foreground return | Idle/Hidden → Active after prolonged absence | Bounded conditional audit | Minimum cooldown; no repeated scans for mouse events. |
-| Safety audit | Long-lived active workspace | Low-frequency bounded status checks | Catch silent missed events/delivery; separate from keepalive; tune via measurement. |
-| Idle cleanup | No active workspace / no renewals | None | Preserve removal/grace and prune caches. |
+| Keeper | every 3 min per active workspace | None | Fixed cadence, per-call timeout, per-context isolation. |
+| File event | watcher | Existing per-repo scan | Existing debounce/gate; retry on transient failure. |
+| Watcher recreated/recovered | Touch | One coalesced scan | Worker-side `MarkDirty`. |
+| Audit | periodic / Online / cold activation / return from idle | Bounded scans | Single-flight per context, timeouts, staggered. |
+| Idle cleanup | no touch for grace | None | Unchanged semantics. |
 
-Do **not** assume a particular cadence or a command-per-repository is sufficiently fast. Phase 0 measures the 20-repo fast machine, the 39-repo VDI, and multi-Feature contexts before tuning. A fast local machine experiencing the same failure is evidence of a correctness issue, not permission to skip performance work.
+Do not assume any cadence is fast enough: Phase 0 and Phase 4 measure the 20-repo machine, the 39-repo VDI and multi-Feature contexts.
 
-## 7. Reuse boundaries and scope control
+## 7. Reuse and scope control
 
-**Reuse unchanged where possible:** route binder, activity tracker interface, context resolver, existing status coordinator, scan service, existing snapshots/version gate, SQLite projection, SignalR notifications, file-tree UI, manual refresh, codegraph/nested-repo rules, repository access broker removal semantics.
+**Reuse unchanged:** route binder, activity tracker, `GitStatusRefreshCoordinator` state machine, status scan service, snapshot cache/version gate, SQLite projection, SignalR notifications, file-tree UI, manual Refresh, nested-repository rules, `IRepositoryAccess` removal semantics.
 
-**Modify intentionally:** watcher manager race handling and health representation, light-touch Worker command/client, App monitoring scheduler, reconnect/resume triggers, reconciliation state and observability, tests.
+**Modify:** watcher manager (deadline expiry, captured-entry leases, health), `GitRepositoryWatcher` (health, restart retry, linked-worktree metadata, buffer size), coordinator (bounded retry of failed watcher scans only), one new Worker command, scanner (extract target resolver), monitoring service (keeper + audit), activation (audit on cold start), options and tests.
 
-**Do not change:** navigation/UX, Git status parsing, stage/unstage/commit semantics, Push Updated lanes, package versioning/publishing, general Git worker concurrency configuration by default, repository cleanup guarantees, or database schema unless Phase 0 proves it necessary.
+**Do not change:** navigation/UX, Git status parsing, stage/unstage/commit semantics, Push Updated lanes, package versioning, general Worker concurrency defaults, repository cleanup guarantees, database schema.
 
 ## 8. Acceptance criteria
 
-1. Fast local **20-repo** Workspace and enterprise **39-repo** Workspace remain monitored through at least 30–120 minutes of no UI interaction, including one or more simultaneous long-running AI editing sessions. Test with active main checkout and Feature worktrees.
-2. A watcher that is recreated, repaired, or re-established after Worker disconnect/restart always gets an authoritative reconciliation; SQLite and visible Changes eventually match `git status` without user Refresh.
-3. Lease renewal issues **zero Git status processes** and remains independent of the previous scan's duration.
-4. An idle/released workspace still evicts its watchers on schedule, including if a Feature is removed; no handles block worktree deletion.
-5. Watcher failures cannot remain forever reported as healthy solely because a manager entry exists.
-6. No uncontrolled duplicate scans, unbounded queued refreshes, orphan subscriptions, pinned watcher counts, or snapshot version regressions; no cross-context notification mix-ups.
-7. The app logs why each watcher was created, renewed, degraded, disposed and reconciled, with the associated Workspace/context/repository, Worker generation, elapsed times and observable gap reason.
-8. No user-visible UX change and no regression to manual Refresh, background mutation notifications, or existing Git mutations.
+1. 20-repo and 39-repo Workspaces (main checkout and Feature worktrees) stay monitored through 30-120 minutes without UI interaction during AI editing sessions; persisted Changes matches an independent `git status` without Refresh.
+2. A watcher that is recreated, recovered, or re-established after Worker disconnect/restart yields an authoritative snapshot without user action.
+3. The keeper issues **zero Git processes** and its cadence is independent of scan duration; one stalled context cannot delay another.
+4. A failed or timed-out watcher scan is retried; linked-worktree `git add`/`commit` is observed by a watcher.
+5. Idle/unviewed workspaces still evict on schedule, including when a Feature is removed; no handle blocks worktree deletion; no watcher is resurrected for a claimed folder.
+6. A stale lease cannot affect a recreated entry; a timer/expiry vs touch race cannot dispose a renewed entry (deterministic tests).
+7. No duplicate or unbounded scans, no orphan subscriptions, no snapshot version regressions, no cross-context mix-ups.
+8. Logs explain why each watcher was created, touched-recovered, degraded, removed and reconciled, with workspace/context/repository identity and durations.
+9. No UX change; manual Refresh, mutation flows and background notifications unchanged.
 
 ## 9. Risks and mitigations
 
-- **App/UI circuit unexpectedly disappears:** treat as presence loss, retain last known desired state for configured grace, recover upon circuit/Worker reconnection with an audit. Never infer closure from 20-second UI inactivity.
-- **Heavy AI file churn:** existing watcher event coalescing remains; safety audits have a cooldown and bounded parallelism. Avoid a global `git status` on every foreground mouse movement.
-- **Concurrent removal vs Ensure:** broker `IsUnderRemoval` and registered releasables win; return `UnderRemoval` and retry only after removal/context resolution confirms valid path.
-- **Timer race under load:** synchronize acquire/expire/remove as one state transition and unit-test forced interleavings.
-- **False healthy acknowledgements:** expose actual watcher health, generation and pending reconciliation; do not treat an active dictionary entry as an OS watcher health probe.
-- **Offline SignalR messages:** reconnect-triggered reconciliation is required; retries of live pushes alone are insufficient.
-- **Stale worker/app protocol:** guarded rollout + legacy fallback and mixed-version integration tests.
-- **Watcher loss that emits no Error event:** low-frequency audit plus foreground reconciliation is mandatory if "what I see is everything that changed" is the product expectation.
+- **Circuit disappears while the window is open:** presence follows the circuit lease; on the new circuit's activation the cold-start audit covers all contexts. Never infer closure from 20-second UI inactivity.
+- **Heavy AI churn:** existing coalescing plus the larger buffer; audits are single-flight and bounded.
+- **Audit interval is coarser than today's polling:** documented trade; configurable; Phase 4 measures.
+- **Ensure queued behind read-pool scans:** three-attempt margin, App timeout, measurement, escalation path.
+- **Concurrent removal vs Touch:** `UnderRemoval` wins and is treated as non-error without retry storms.
+- **False healthy:** health derives from OS watcher state, not entry existence.
 
 ## 10. Rollback
 
-Use a runtime flag to choose new keepalive coordinator versus current full-sweep behavior; avoid both paths running continuously simultaneously. Preserve current `GetGitChangeStatus` and all existing snapshot interfaces. Rollback means disabling the new keeper and reverting to original renewal scans without schema migration. Confirm watcher cleanup and no duplicate lease ownership during flag transitions.
+An App-side option (for example `GitChanges:UseWatcherKeeper`, default off until accepted) selects the new keeper + audit or the existing sweep; exactly one runs, never both. Worker changes (Phase 1) are behavior-preserving fixes and ship unflagged. The new Worker command is inert unless the App calls it. No schema migration. Verify no leaked watchers or duplicate scans when the flag flips at runtime.
 
-## 11. Open engineering checks (must resolve in Phase 0)
+## 11. Remaining Phase 0 questions
 
-- Confirm exact Worker command scheduling and whether a lightweight command can be delayed by long jobs.
-- Determine the reason watchers disappear in the **fast** environment using correlated logs and counter values; confirm presence while the workspace route remains open.
-- Verify `GitRepositoryWatcher.Start` after `.git` watcher failure, linked worktrees, nested repositories and Worker disconnect behavior.
-- Check snapshot publishing failures and SQLite write queue backlog during the AI run.
-- Confirm route activation during WebView2 visibility changes, Blazor circuit reconnection and browser reload.
-- Set audit cooldown/cadence based on measurement; do not use arbitrary fast polling to hide a lifecycle defect.
+- Which of F1-F3 explains the field symptom? Correlate keeper/sweep timing, presence, Worker connection state, publisher drops and version-gate rejections during a real AI run on both machines.
+- Read-pool queue wait for a tiny command while eight scans run on the VDI.
+- Does the Desktop WebView2 shell suspend or throttle the page or circuit while hidden? (Check the Desktop repo before assuming.)
+- Linked-worktree layout: `gitdir:` resolution for worktrees of a main checkout and for the special Workspace repository.
 
-**Design principle:** **Keeping a watcher alive, verifying the watcher is healthy, and confirming persisted Changes is up to date are three separate contracts.** Solve and instrument all three.
+**Design principle:** keeping a watcher alive, verifying it is healthy, and confirming the persisted view is current are three separate contracts. Solve and instrument all three.
+
+## 12. Changes from revision 1
+
+- Failure mechanisms re-ranked by what the code proves; the sweep's role as the implicit 3-minute audit is now explicit.
+- Expiry redesigned as a deadline plus one sweeper (no generations, no per-entry timers); leases capture the entry; `Touch` replaces acquire/release for keepalive.
+- `coverageGeneration` and `needsReconciliation` wire fields removed; the Worker self-heals gaps with `MarkDirty`, and the App audit is the only App-side reconciliation machinery.
+- Added: linked-worktree metadata watching, bounded retry of failed watcher scans, buffer size, per-call timeouts, audit on cold activation of all contexts.
+- Added decisions instead of open checks: read-pool routing, shared target resolver, no desired-set cache initially.
+- Removed mixed-version/legacy-protocol language (App and Worker are version-locked).
