@@ -133,7 +133,7 @@ Fast host (~20 repos) and VDI (~39 repos, several Features): route open, no inpu
 2. Handler: reuse `WorkerRepositoryPaths.GetWorkspacePath` / `Resolve` exactly as `GetGitChangeStatusCommand` does; never accept raw absolute paths. Per repository: skip missing folders (`Missing`), register attribution, `watcherManager.Touch`. Deduplicate normalized paths, cap batch size, honor cancellation, return partial results.
 3. `IGitChangesWorkerClient`: add the batch call; keep `GetStatusAsync` unchanged. Resolve capabilities once per batch, not per repository.
 4. App: extract the target-resolution portion of `GitChangesWorkspaceScanner.ScanCoreAsync` into a shared resolver used by both the scanner and the future keeper. Pure refactor first, covered by the existing scanner tests.
-5. Add options: `WatcherAuditIntervalMinutes` (default 5), `UseWatcherKeeper` (default false), keeper call timeout (default 30 s), keeper concurrency. Document them in the options XML docs.
+5. Add options: `WatcherAuditIntervalMinutes` (default 5), `WatcherAuditTimeoutSeconds`, `WatcherAuditMaxParallelContexts`, `WatcherKeeperMaxParallelContexts`, keeper call timeout (`WatcherEnsureTimeoutSeconds`, default 30 s). No feature flag. Document them in the options XML docs.
 
 ### Tests
 
@@ -147,18 +147,19 @@ Fast host (~20 repos) and VDI (~39 repos, several Features): route open, no inpu
 
 ---
 
-## Phase 3 - App keeper and audit scheduler (behind the flag)
+## Phase 3 - App keeper and audit scheduler
 
 **Objective:** replace the sequential sweep. The keeper and the audit ship together so correctness never depends on a keepalive alone.
 
 ### Work
 
-1. Rework `GitChangesMonitoringBackgroundService` (or split into a keeper service and an audit scheduler service) selected by `UseWatcherKeeper`; the old sweep remains reachable only when the flag is off.
+1. Replace `GitChangesMonitoringBackgroundService` with a keeper service (`GitChangesWatcherKeeper`) and an audit scheduler service (`GitChangesAuditScheduler`). There is no flag and the old sweep is deleted; the Phase 2 `EnsureWatchersInSweep` test flag is removed too.
 2. **Keeper:** `PeriodicTimer` at `WatcherRenewalIntervalMinutes`; per tick, active workspaces then non-paused contexts (`monitoringPause` still honored), one batch per context chunk, bounded context concurrency, each call under its own timeout, per-context error isolation, logs with planned vs actual tick time. Use the Worker-reported grace only for logging and for a sanity warning if the cadence would not leave at least two attempts before expiry.
 3. **Audit scheduler:** single-flight, coalesced per `(workspaceId, contextId)`; bounded parallelism; every run wrapped in a timeout; uses the existing `ScanRepositoriesAsync` and write queue; remembers last audit time per context.
 4. **Triggers:** periodic (`WatcherAuditIntervalMinutes`, staggered), Worker `Online` (Ensure first, then audit), cold activation of a workspace (all contexts, not only the special Workspace; coordinate with `WorkspaceGitChangesActivation` so the page's own line-stats warm-up is not duplicated), and return from a prolonged Idle/Hidden state through the existing activity-state signal with a cooldown of about 2 minutes. Mouse movement itself never triggers a scan.
 5. Presence rules unchanged: `GetActiveWorkspaceIds` decides what is sent; after the grace, nothing is sent and the Worker evicts. Skip `UnderRemoval` and `Missing` quietly; no retry storms.
 6. Subscribe to Worker connection state with deterministic detach on shutdown.
+7. **Coalesce reconnect wakes (observed 2026-10-28):** after a Worker reconnect the connection tracker reports `Online` twice about 40 ms apart, and each one wakes the sweep, so two full passes run back to back. The keeper must treat wakes as "run once soon": one in-flight run per context, further wakes while it runs or within a few seconds of its start collapse into it, and an `Online` that follows an `Online` is ignored. Implemented in the keeper (an `Online` after an `Online`, or within 5 s of a reconnect run, is ignored) and in the audit scheduler (per-context single-flight, 5 s coalesce window).
 
 ### Tests
 
@@ -166,9 +167,9 @@ Fast host (~20 repos) and VDI (~39 repos, several Features): route open, no inpu
 - A fake 15-minute scan or a hung Worker call never blocks keeper ticks.
 - Context A failing or timing out does not delay context B or the special Workspace.
 - Worker reconnect while the route stays active: Ensure then audit, no reliance on the activity grace.
+- A double `Online` (two events within 100 ms) produces exactly one Ensure and one audit per context.
 - Cold activation audits all contexts once; repeated route transitions create no duplicate loops, subscriptions or scans.
 - Cooldown: Idle/Hidden to Active within the cooldown does not rescan.
-- Flag off: old sweep behavior unchanged; flag flip at runtime leaves no duplicate loops.
 - No outdated snapshot overwrites a newer one (existing version-gate tests plus an out-of-order case).
 
 **Exit gate:** in an active workspace no watcher expires because a scan occupies the renewal path; unviewed workspaces still evict; every watcher gap has a path to an authoritative snapshot.
@@ -202,9 +203,9 @@ Collect before/after on both machines, compared with today's sweep: keeper tick 
 1. Phase 0 evidence review.
 2. Phase 1 Worker hardening (App unchanged).
 3. Phase 2 command and resolver (inert until called).
-4. Phase 3 keeper + audit behind `UseWatcherKeeper`, opt-in on both machines.
+4. Phase 3 keeper + audit replace the sweep (no flag), deployed on both machines.
 5. Verify with real AI runs, Worker restart and circuit reconnect; compare persisted snapshots with independent `git status`.
-6. Make the keeper the default after acceptance; keep the flag for one release window, then delete the old sweep.
+6. Accept on both machines; if a regression appears, roll back by redeploying the previous build.
 
 ### Exit artifacts
 
@@ -220,7 +221,7 @@ Collect before/after on both machines, compared with today's sweep: keeper tick 
 | Responsibility | Starting point (relative to `GrayMoon/src`) |
 |---|---|
 | Presence | `GrayMoon.App/Components/Shared/WorkspaceGitChangesActivityBinder.razor`; `GrayMoon.App/Services/GitChanges/WorkspaceGitChangesRouteActivity.cs`, `WorkspaceGitChangesActivityTracker.cs`, `WorkspaceGitChangesActivation.cs` |
-| Monitoring | `GrayMoon.App/Services/GitChanges/GitChangesMonitoringBackgroundService.cs`, `GitChangesWorkspaceScanner.cs`, `GitChangesWorkerClient.cs` |
+| Monitoring | `GrayMoon.App/Services/GitChanges/GitChangesWatcherKeeper.cs`, `GitChangesAuditScheduler.cs`, `GitChangesContextEnsurer.cs`, `GitChangesWorkspaceScanner.cs`, `GitChangesWorkerClient.cs` |
 | Worker watchers | `GrayMoon.Worker/Services/GitChanges/GitRepositoryWatcherManager.cs`, `GitRepositoryWatcher.cs`, `GitRepositoryWatcherCoverage.cs` |
 | Refresh and publish | `GrayMoon.Worker/Services/GitChanges/GitStatusRefreshCoordinator.cs`, `GitChangesSnapshotPublisher.cs`; `GrayMoon.App/Services/GitChanges/GitChangesSnapshotPushHandler.cs`, `WorkspaceGitChangesWriteQueue.cs` |
 | Worker protocol | `GrayMoon.Worker/Jobs/Requests/*`, `Jobs/Response/*`, `Commands/*`, `Services/CommandJobFactory.cs`, `Services/CommandDispatcher.cs`, `Cli/Handlers/RunCommandHandler.cs`, `Hosted/SignalRConnectionHostedService.cs` (`ReadOnlyCommands`), `GrayMoon.Abstractions/Worker/WorkerHubMethods.cs` |

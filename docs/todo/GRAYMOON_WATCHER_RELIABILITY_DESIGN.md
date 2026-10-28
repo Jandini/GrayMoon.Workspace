@@ -29,7 +29,7 @@ Today all three are collapsed into one operation (a full status scan every 3 min
 
 | Component | Verified behavior | Consequence |
 |---|---|---|
-| `GitChangesMonitoringBackgroundService` | Waits 5 s, then loops: for each active workspace, for each non-paused context, `await scanner.ScanWorkspaceAsync(...)` **sequentially**; then waits `WatcherRenewalIntervalMinutes` (3, clamped below idle grace). Wakes early only on Worker `Online`. Returns silently when the Worker is disconnected. No per-context timeout. | Renewal period is `sweep duration + 3 min`. One slow or stalled context delays every later context and workspace. It is also today's only periodic audit: every active repository is rescanned every ~3 min plus sweep time. |
+| `GitChangesMonitoringBackgroundService` (replaced by `GitChangesWatcherKeeper` and `GitChangesAuditScheduler`) | Waits 5 s, then loops: for each active workspace, for each non-paused context, `await scanner.ScanWorkspaceAsync(...)` **sequentially**; then waits `WatcherRenewalIntervalMinutes` (3, clamped below idle grace). Wakes early only on Worker `Online`. Returns silently when the Worker is disconnected. No per-context timeout. | Renewal period is `sweep duration + 3 min`. One slow or stalled context delays every later context and workspace. It is also today's only periodic audit: every active repository is rescanned every ~3 min plus sweep time. |
 | `GitChangesWorkspaceScanner.ScanCoreAsync` | One DB query and one path-resolution call per context, then one `GetGitChangeStatus` Worker command per repository, bounded by `MaxParallelRepositoryOperations`. Results go to the write queue with fire-and-forget `Enqueue`. | Reusable for target resolution (path + attribution). Each command waits up to `WorkerBridgeOptions.CommandTimeoutSeconds` (240 s). With the Worker read pool saturated, a 39-repo context can take many multiples of that. |
 | `WorkerBridge` | Per-command timeout 240 s; a timed-out call returns a failed response. | A lost response does not hang forever, but it can stall the sequential sweep for minutes per batch. |
 | `GetGitChangeStatusCommand` | Registers path attribution, `watcherManager.Acquire(repoPath)`, runs `RefreshNowAsync`, releases the lease on completion. | Keepalive is tied to a Git scan and to read-pool scheduling (`ReadOnlyCommands` in `SignalRConnectionHostedService`). |
@@ -184,7 +184,7 @@ Do not assume any cadence is fast enough: Phase 0 and Phase 4 measure the 20-rep
 
 ## 10. Rollback
 
-An App-side option (for example `GitChanges:UseWatcherKeeper`, default off until accepted) selects the new keeper + audit or the existing sweep; exactly one runs, never both. Worker changes (Phase 1) are behavior-preserving fixes and ship unflagged. The new Worker command is inert unless the App calls it. No schema migration. Verify no leaked watchers or duplicate scans when the flag flips at runtime.
+There is no feature flag. The keeper and the audit replace the sweep in one step, so exactly one mechanism ever runs. Worker changes (Phase 1) are behavior-preserving fixes. The new Worker command is inert unless the App calls it. No schema migration. Verify no leaked watchers or duplicate scans across Worker reconnects and circuit reconnects.
 
 ## 11. Remaining Phase 0 questions
 
