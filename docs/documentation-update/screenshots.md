@@ -36,7 +36,9 @@ Cut to about 60-80 screenshots, down from 348 files on disk and 315 referenced p
 
 Recapture the survivor set from the running app (Blazor Server in a browser, or the WPF Desktop window). An image model is the wrong tool for these shots. The docs depend on exact grid layout, exact button and badge colors (the pages say "red ↑0 ↓1", "purple merged", "green PR badges"), exact modal copy, and seeded data (`MezzoRecovery`, `TapeTools`, `TapeDrive`, PR numbers, tag `0.2.0` as a TapeDrive tag).
 
-The shot list below is the brief for a person or a later agent driving the real window. It is a text checklist. It is the capture method.
+The shot list below is the brief for a person or a later agent driving the real window. It is a text checklist. It is the capture method. The runnable procedure for actually driving the window, sizing the viewport, and getting each shot approved before filing it is [screenshot-trial.md](screenshot-trial.md).
+
+Capture runs as its own session, before the README and wiki rewrites ([bootstrap.md](bootstrap.md) step 1). That session files accepted PNGs and does not edit page text. The rewrite later embeds those files and drops the retired ones. New 0.2.0 controls are shot in that session even though their wiki pages are not written yet.
 
 ### Policy
 

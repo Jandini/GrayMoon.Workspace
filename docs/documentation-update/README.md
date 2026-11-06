@@ -19,10 +19,12 @@ Nothing in `docs/todo` is fully shipped, so the delete list is empty.
 
 ## Documents
 
+- [Bootstrap](bootstrap.md) is the execution order for everyone else here: what to open, in what sequence, and when each phase is done.
 - [What needs update](what-needs-update.md) lists every file and wiki page to change, with the verdict and the fact that is wrong.
 - [README rewrite](readme-rewrite.md) says how each README should read, including the section outlines for the three entry READMEs.
 - [Wiki 0.2.0](wiki-0.2.0.md) is the wiki plan: stale pages, new sections, and the one behavior each partial page must gain.
 - [Screenshots](screenshots.md) is the capture policy, the shot-list template, and the keep / recapture / drop groups.
+- [Screenshot trial](screenshot-trial.md) is the runnable procedure: viewport sizing, the human review gate, and the safety rules for driving the two live workspaces used for capture.
 - [Plans to delete](plans-to-delete.md) records the empty delete list, the two partial todo notes, and the five open todos.
 
 ## Evidence
