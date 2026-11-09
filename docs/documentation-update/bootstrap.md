@@ -54,14 +54,11 @@ Embed the files from step 1. Write the page so it matches the shot. Drop the sec
 
 Done when: 0 pages state the 3-minute wait, the **Create PRs...** label, or "GrayMoon does not merge for you," the 7 missing topics above each have a page or section, and the wiki references about 60-80 screenshot files total, none of them byte-identical duplicates.
 
-### 4. docs/todo notes: update the 2 partial ones
+### 4. docs/todo notes: done
 
-Source: [plans-to-delete.md](plans-to-delete.md), `_raw/03-plans-to-delete.md`.
+Source: `GrayMoon/docs/todo/README.md`.
 
-- `GrayMoon/docs/todo/pr-description-commit-history.md` - rewrite sections 1-2 to match `docs/architecture/05-user-capability-reference.md`; leave step 4 as open work.
-- `GrayMoon/docs/todo/push-package-wait-and-circuit-crash.md` - leave the wiki-timeout bullet in "still open" until step 3 above fixes the wiki; then remove it.
-
-The 5 NOT IMPLEMENTED notes and the TO DELETE list (empty) need no action in this pass.
+Shipped notes are deleted, the partial ones are trimmed to their open items, and the notes are split into `defects/` and `ideas/`. The only step left: when step 3 fixes the wiki timeout wording, remove the wiki bullet from `GrayMoon/docs/todo/defects/push-package-wait-and-circuit-crash.md`.
 
 ### 5. Can wait
 
@@ -79,5 +76,5 @@ This is a product decision (where does the changelog live), not a doc-wording fi
 ## Out of scope for this pass
 
 - `GrayMoon/docs/architecture/01, 02, 03, 06, 07` and `GrayMoon.Desktop/docs/architecture/02, 04` body content (only their index hashes/header counts are in scope).
-- Wiki pages marked OK (13 of them) and `docs/todo` notes marked NOT IMPLEMENTED (5 of them) - no edit needed.
+- Wiki pages marked OK (13 of them) - no edit needed.
 - Committing or pushing any of this. Per workspace rules, nothing in `GrayMoon`, `GrayMoon.Desktop`, or `GrayMoon.wiki` gets committed or pushed without an explicit request for that exact action.

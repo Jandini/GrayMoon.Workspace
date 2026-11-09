@@ -15,7 +15,7 @@ READMEs are rewritten for developers who build and run the product.
 
 Screenshots are reduced to about 60-80 real captures and recaptured from the running app with a shot list. Image-generation prompts are not the method, because the shots depend on exact UI text, colors, and seeded data.
 
-Nothing in `docs/todo` is fully shipped, so the delete list is empty.
+Open work notes are indexed in `GrayMoon/docs/todo/README.md` (fully shipped notes are already deleted).
 
 ## Documents
 
@@ -25,13 +25,11 @@ Nothing in `docs/todo` is fully shipped, so the delete list is empty.
 - [Wiki 0.2.0](wiki-0.2.0.md) is the wiki plan: stale pages, new sections, and the one behavior each partial page must gain.
 - [Screenshots](screenshots.md) is the capture policy, the shot-list template, and the keep / recapture / drop groups.
 - [Screenshot trial](screenshot-trial.md) is the runnable procedure: viewport sizing, the human review gate, and the safety rules for driving the two live workspaces used for capture.
-- [Plans to delete](plans-to-delete.md) records the empty delete list, the two partial todo notes, and the five open todos.
 
 ## Evidence
 
-`_raw/` holds the specialist notes. When those notes disagree, follow the specialist: README verdicts from `01-readmes.md`, wiki verdicts from `02-wiki-vs-code.md`, plan status from `03-plans-to-delete.md`, screenshot counts from `04-screenshots.md`.
+`_raw/` holds the specialist notes. When those notes disagree, follow the specialist: README verdicts from `01-readmes.md`, wiki verdicts from `02-wiki-vs-code.md`, screenshot counts from `04-screenshots.md`.
 
 - [README and entry-document audit](_raw/01-readmes.md)
 - [Wiki versus code](_raw/02-wiki-vs-code.md)
-- [Planning docs](_raw/03-plans-to-delete.md)
 - [Screenshot inventory](_raw/04-screenshots.md)
