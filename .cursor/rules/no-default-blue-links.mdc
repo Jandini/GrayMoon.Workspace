@@ -5,8 +5,11 @@ alwaysApply: true
 
 # No default blue links
 
-Default browser or Bootstrap blue link colors must not appear anywhere in GrayMoon unless a link is explicitly designed to be blue (for example the `--accent-blue` link style in grid cells).
+Default browser or Bootstrap blue link colors must not appear anywhere in GrayMoon unless a link is explicitly designed to be blue (for example an intentional `--accent-blue` style).
 
-- Every new badge, chip, button-like anchor or icon link that uses `<a>` must set its own `color` (white on colored badges) and `text-decoration: none`, and the rule must win over `.table tbody td a` in `app.css` (use `a:not(.badge)` there, or a more specific selector with `!important`).
-- Check a new link visually in Workspace Repositories and Repositories grid rows before finishing: badge text must not be blue.
+Global `.table tbody td a:not(.badge)` in `app.css` forces `--accent-blue` on every non-badge grid cell link. That includes plain text column links (Workflow, repository name, package id, and similar), not only badges and chips. New grid column links must override that rule on purpose; do not leave them on the default blue.
+
+- Every new badge, chip, button-like anchor, icon link, or grid column text link that uses `<a>` must set its own `color` (white / white-ish on dark grids, or white on colored badges) and `text-decoration: none`.
+- The override must win over `.table tbody td a:not(.badge)` (higher specificity, e.g. `.actions-table td a.actions-workflow-link` or `a:not(.badge)`, with `!important` when that global rule uses it).
+- Check a new link visually in Workspace Repositories, Repositories, and Actions grid rows before finishing: badge text and column text links must not be default blue.
 - Do not rely on inherited or default `a` colors.
