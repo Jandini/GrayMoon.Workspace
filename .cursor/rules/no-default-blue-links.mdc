@@ -1,0 +1,12 @@
+---
+description: No default blue links in GrayMoon
+alwaysApply: true
+---
+
+# No default blue links
+
+Default browser or Bootstrap blue link colors must not appear anywhere in GrayMoon unless a link is explicitly designed to be blue (for example the `--accent-blue` link style in grid cells).
+
+- Every new badge, chip, button-like anchor or icon link that uses `<a>` must set its own `color` (white on colored badges) and `text-decoration: none`, and the rule must win over `.table tbody td a` in `app.css` (use `a:not(.badge)` there, or a more specific selector with `!important`).
+- Check a new link visually in Workspace Repositories and Repositories grid rows before finishing: badge text must not be blue.
+- Do not rely on inherited or default `a` colors.
