@@ -4,6 +4,16 @@ Start here. The other files in this folder are the audit (what is wrong) and the
 
 Reviewed against the repo on 2026-11-05: GrayMoon HEAD `8257e162` (`0.1.0-117-g8257e162`), GrayMoon.Desktop HEAD `7faf92c` (`0.1.0-103-g7faf92c`). Before starting, confirm both are still HEAD (`git log -1 --format="%H"` in each repo). If either has moved, re-check the specific facts this plan cites in that repo's architecture docs before trusting the verdicts below — do not re-run the whole audit for a handful of new commits.
 
+## Status on 2026-11-09
+
+Both repositories moved after the audit, and both now carry a `0.2.0` tag (GrayMoon `4b725464`, GrayMoon.Desktop `54969ce`, both 2026-11-06). HEADs are GrayMoon `ae1b748c` and GrayMoon.Desktop `c9c9c10`, 11 commits past the tag in each. The phases below were re-checked against those HEADs:
+
+- **Phase 1, screenshots: not started.** The wiki references 309 files. 17 groups of byte-identical duplicates are still referenced, and 46 files on disk are referenced by no wiki page. Five of those 46 are embedded by `GrayMoon/README.md` through raw wiki URLs (`changes-diff.png`, `changes-preview.png`, `dependencies.png`, `workspace2-actions-running.png`, `workspace2-repositories-on-main.png`), so they must stay.
+- **Phase 2, READMEs and indexes: done, except the decision below.** `GrayMoon/README.md` was rewritten as a product page rather than the 11-section developer outline; build, test and layout stay in `GrayMoon/CLAUDE.md`. `GrayMoon.Release/README.md` is rewritten (uncommitted in that repo). The Desktop README clone path, tag sample and bridge sentence are fixed. Desktop architecture `01` and both architecture indexes say 13 commands and list Claude and Codex. The baseline hashes in both architecture indexes were moved to the current HEADs on 2026-11-09. `## Recent GrayMoon changes` has 250 bullets and still grows.
+- **Phase 3, wiki: text done, images open.** The five stale pages are corrected, the **Create PRs...** label is gone (the remaining "Create PRs" are phase names, which the plan allows), "GrayMoon does not merge for you" is gone, and the seven missing topics each have a page or section (`AI-Commit-and-Pull-Request-Text.md`, `Desktop.md`, and sections on `Workspace-Features.md`, `App-Workspaces.md`, `Workspace-Repositories.md`). Open: the screenshot consolidation above, and the `0.1.0-upstream-fix.261` version sample on `Shared-Chrome.md`.
+- **Phase 4, docs/todo: done.** The wiki bullet was removed from `GrayMoon/docs/todo/defects/push-package-wait-and-circuit-crash.md` on 2026-11-09.
+- **Phase 5, can wait:** the `GrayMoon/.cursor/README.md` rule row and the Docker and Desktop database paths in `GrayMoon/CLAUDE.md` were done on 2026-11-09. The root `C:\Workspace\GrayMoon\README.md` is still absent.
+
 ## Order of work
 
 Do the phases in this order. Each later phase assumes the one before it is either done or deliberately deferred to "Can wait".
@@ -54,14 +64,11 @@ Embed the files from step 1. Write the page so it matches the shot. Drop the sec
 
 Done when: 0 pages state the 3-minute wait, the **Create PRs...** label, or "GrayMoon does not merge for you," the 7 missing topics above each have a page or section, and the wiki references about 60-80 screenshot files total, none of them byte-identical duplicates.
 
-### 4. docs/todo notes: update the 2 partial ones
+### 4. docs/todo notes: done
 
-Source: [plans-to-delete.md](plans-to-delete.md), `_raw/03-plans-to-delete.md`.
+Source: `GrayMoon/docs/todo/README.md`.
 
-- `GrayMoon/docs/todo/pr-description-commit-history.md` - rewrite sections 1-2 to match `docs/architecture/05-user-capability-reference.md`; leave step 4 as open work.
-- `GrayMoon/docs/todo/push-package-wait-and-circuit-crash.md` - leave the wiki-timeout bullet in "still open" until step 3 above fixes the wiki; then remove it.
-
-The 5 NOT IMPLEMENTED notes and the TO DELETE list (empty) need no action in this pass.
+Shipped notes are deleted, the partial ones are trimmed to their open items, and the notes are split into `defects/` and `ideas/`. The only step left: when step 3 fixes the wiki timeout wording, remove the wiki bullet from `GrayMoon/docs/todo/defects/push-package-wait-and-circuit-crash.md`.
 
 ### 5. Can wait
 
@@ -79,5 +86,5 @@ This is a product decision (where does the changelog live), not a doc-wording fi
 ## Out of scope for this pass
 
 - `GrayMoon/docs/architecture/01, 02, 03, 06, 07` and `GrayMoon.Desktop/docs/architecture/02, 04` body content (only their index hashes/header counts are in scope).
-- Wiki pages marked OK (13 of them) and `docs/todo` notes marked NOT IMPLEMENTED (5 of them) - no edit needed.
+- Wiki pages marked OK (13 of them) - no edit needed.
 - Committing or pushing any of this. Per workspace rules, nothing in `GrayMoon`, `GrayMoon.Desktop`, or `GrayMoon.wiki` gets committed or pushed without an explicit request for that exact action.
