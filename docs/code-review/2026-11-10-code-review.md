@@ -1,5 +1,7 @@
 # GrayMoon code review - 2026-11-10
 
+Fix plan: [2026-11-10-fix-plan.md](2026-11-10-fix-plan.md).
+
 **Baseline:** GrayMoon `ae1b748c`, GrayMoon.Desktop `c9c9c105` (both tagged `0.2.0`).
 **Method:** eight parallel read-only reviews (Features, orchestration, data/security, Blazor pages, modals/shared UI/JS, GitChanges/Common, Worker, Desktop/build) checked against the invariants in `GrayMoon/CLAUDE.md` and `AGENTS.md`. Findings marked CONFIRMED were re-read in the current source; PLAUSIBLE ones were traced but not executed.
 **Build and tests:** both solutions build with 0 warnings. Tests: Common 390, Worker 882 (+1 skipped), App 1851, Desktop 221, all passing.
