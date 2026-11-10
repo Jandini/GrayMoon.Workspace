@@ -24,7 +24,7 @@ A GrayMoon feature (for example `~/.graymoon/GrayMoon/features/<name>/`) has the
 ## Which CLAUDE.md applies
 
 - Working in `GrayMoon/` -> see `GrayMoon/CLAUDE.md` and `GrayMoon/AGENTS.md` for build/test commands, coding rules and the App/Worker architecture summary.
-- Working in `GrayMoon.Desktop/` -> see `GrayMoon.Desktop/CLAUDE.md` for build/test commands and the desktop shell's process/IPC architecture.
+- Working in `GrayMoon.Desktop/` -> see `GrayMoon.Desktop/CLAUDE.md` and `GrayMoon.Desktop/AGENTS.md` for build/test commands and the desktop shell's process/IPC architecture.
 
 ## Documentation
 
@@ -33,9 +33,33 @@ Each code repository keeps a current-state architecture reference:
 - `GrayMoon/docs/architecture/` (start at `README.md`)
 - `GrayMoon.Desktop/docs/architecture/` (start at `README.md`)
 
+Workspace-level documents live in `docs/` of this root repository: `docs/code-review/` (the summary of the 2026-11-10 review fixes, kept while manual testing is going on; open items are notes in `GrayMoon/docs/todo/defects/`) and `docs/documentation-update/` (the documentation refresh plan).
+
 Proposals and design notes for work not yet built go in `GrayMoon/docs/todo/`. When behavior changes, update the relevant architecture document in the same change. Repository `README.md` files stay user/developer facing and link to the architecture folder.
 
 After any feature, bug fix or other change to product behavior, add one bullet at the top of `## Recent GrayMoon changes` in `GrayMoon.Desktop/README.md`, or edit the existing bullet for that feature. The full style is in `.cursor/rules/update-desktop-readme.mdc`: start with a bold phrase, then ` - ` (ASCII hyphen), describe what the user sees and why, and finish with what stayed the same. Skip this for questions, reviews, refactors, tests and documentation-only edits.
+
+## Defect-prevention rules
+
+The 2026-11-10 code review found recurring patterns behind its bugs. Each pattern now has a rule; read the matching section before working in that area. The findings were fixed on `code-review-fixes`; `docs/code-review/2026-11-10-fix-summary.md` lists each fix by finding number, and what is still open is in `GrayMoon/docs/todo/defects/`. The rules stay, and an existing violation is never a pattern to copy.
+
+| Pattern that caused bugs | Rule | Where |
+|---|---|---|
+| Feature contexts writing the shared `WorkspaceRepositoryLink` | Per-context state goes through `WorkspaceRepositoryStateWriter`; read branch/tag from the context | `GrayMoon/AGENTS.md` "Feature-context scoping" |
+| Job bodies mutating page state on the thread pool | Load off-thread, apply inside `InvokeAsync` / `SafeInvoke` | `GrayMoon/AGENTS.md` "Blazor page jobs" |
+| Context id read lazily inside job lambdas | Capture `RequireSelectedContextId()` before the job is queued | same |
+| Singletons with per-circuit state or leaked handlers | Scoped services for UI state; remove every subscription in `Dispose` | `GrayMoon/AGENTS.md` "Service lifetimes and event subscriptions" |
+| Deleting rows after a failed or partial fetch; incomplete cleanup | Delete only for sources that answered; clean every dependent table; re-check before queued destructive work | `GrayMoon/AGENTS.md` "Destructive and merge operations" |
+| Swallowed errors on "best effort" steps, fragile waits and cancellation | Always report an outcome; transient error in a wait loop is "not yet" | `GrayMoon/AGENTS.md` "Failures, cancellation and waiting" |
+| Unvalidated paths, interpolated command lines, `.git` assumed to be a directory | `GitRepositoryPathValidator`, `ArgumentList` with `--`, `git rev-parse --git-path` | `GrayMoon/AGENTS.md` "Worker: input, processes and git" |
+| Surfaces open by default (optional secret, `AllowedHosts "*"`, Origin equals Host) | Secure by default; loopback or `GRAYMOON_AllowedHosts` | `GrayMoon/AGENTS.md` "Trust boundaries (App)" |
+| Desktop: case-sensitive message gate, orphaned App child, unsubscribed events, unpinned release inputs | Desktop rules | `GrayMoon.Desktop/CLAUDE.md` "Defect-prevention rules" |
+
+Rules that apply everywhere:
+
+- A fix ships with a regression test that fails on the old code. A failure-path test seeds data the failure could destroy.
+- Documents describe what the code does. When a document and the code differ, fix one of them in the same change and say which.
+- Items a review marks PLAUSIBLE are confirmed (failing test or breakpoint) before they are fixed.
 
 ## Never commit or push without an explicit request
 
