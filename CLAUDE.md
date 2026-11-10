@@ -33,7 +33,7 @@ Each code repository keeps a current-state architecture reference:
 - `GrayMoon/docs/architecture/` (start at `README.md`)
 - `GrayMoon.Desktop/docs/architecture/` (start at `README.md`)
 
-Workspace-level documents live in `docs/` of this root repository: `docs/code-review/` (dated code reviews and their fix plans; update a finding's row to `Fixed (<branch>)` when you fix it) and `docs/documentation-update/` (the documentation refresh plan).
+Workspace-level documents live in `docs/` of this root repository: `docs/code-review/` (the summary of the 2026-11-10 review fixes, kept while manual testing is going on; open items are notes in `GrayMoon/docs/todo/defects/`) and `docs/documentation-update/` (the documentation refresh plan).
 
 Proposals and design notes for work not yet built go in `GrayMoon/docs/todo/`. When behavior changes, update the relevant architecture document in the same change. Repository `README.md` files stay user/developer facing and link to the architecture folder.
 
@@ -41,7 +41,7 @@ After any feature, bug fix or other change to product behavior, add one bullet a
 
 ## Defect-prevention rules
 
-The 2026-11-10 code review (`docs/code-review/2026-11-10-code-review.md`, fix plan next to it) found recurring patterns behind its bugs. Each pattern now has a rule; read the matching section before working in that area. All numbered findings were fixed on `code-review-fixes` (statuses are in the review); the rules stay, and an existing violation is never a pattern to copy.
+The 2026-11-10 code review found recurring patterns behind its bugs. Each pattern now has a rule; read the matching section before working in that area. The findings were fixed on `code-review-fixes`; `docs/code-review/2026-11-10-fix-summary.md` lists each fix by finding number, and what is still open is in `GrayMoon/docs/todo/defects/`. The rules stay, and an existing violation is never a pattern to copy.
 
 | Pattern that caused bugs | Rule | Where |
 |---|---|---|

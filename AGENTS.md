@@ -21,12 +21,12 @@ In a feature worktree, stay inside the feature folder and run git per sub-repo t
 
 - Current-state architecture lives in `GrayMoon/docs/architecture/` and `GrayMoon.Desktop/docs/architecture/`. Update the relevant document in the same change as the behavior it describes.
 - Proposals for work not yet built go in `GrayMoon/docs/todo/`.
-- Workspace-level documents live in `docs/` here: `docs/code-review/` (dated reviews and fix plans; mark a finding `Fixed (<branch>)` when you fix it) and `docs/documentation-update/`.
+- Workspace-level documents live in `docs/` here: `docs/code-review/` (the summary of the 2026-11-10 review fixes, kept while manual testing is going on) and `docs/documentation-update/`.
 - After any feature, bug fix or other change to product behavior, add one bullet at the top of `## Recent GrayMoon changes` in `GrayMoon.Desktop/README.md`, or edit the existing bullet for that feature. Style: a bold phrase, then ` - ` (ASCII hyphen), what the user sees and why, and what stayed the same. Skip it for questions, reviews, refactors, tests and documentation-only edits.
 
 ## Defect-prevention rules
 
-The 2026-11-10 code review (`docs/code-review/`, with its fix plan) found recurring patterns behind its bugs. Each has a rule; read the matching section before working in that area. An existing violation in the code is never a pattern to copy.
+The 2026-11-10 code review (fixes listed by finding number in `docs/code-review/2026-11-10-fix-summary.md`) found recurring patterns behind its bugs. Each has a rule; read the matching section before working in that area. An existing violation in the code is never a pattern to copy.
 
 - **Feature-context writes** - per-context state goes through `WorkspaceRepositoryStateWriter`, never the shared `WorkspaceRepositoryLink`. `GrayMoon/AGENTS.md` "Feature-context scoping".
 - **Page state** - a job body loads off-thread and applies inside `InvokeAsync` / `SafeInvoke`; `RequireSelectedContextId()` is captured before the job is queued. `GrayMoon/AGENTS.md` "Blazor page jobs".
