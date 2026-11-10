@@ -41,7 +41,7 @@ After any feature, bug fix or other change to product behavior, add one bullet a
 
 ## Defect-prevention rules
 
-The 2026-11-10 code review (`docs/code-review/2026-11-10-code-review.md`, fix plan next to it) found recurring patterns behind its bugs. Each pattern now has a rule; read the matching section before working in that area. Some findings are still open in the code, so an existing violation is never a pattern to copy.
+The 2026-11-10 code review (`docs/code-review/2026-11-10-code-review.md`, fix plan next to it) found recurring patterns behind its bugs. Each pattern now has a rule; read the matching section before working in that area. All numbered findings were fixed on `code-review-fixes` (statuses are in the review); the rules stay, and an existing violation is never a pattern to copy.
 
 | Pattern that caused bugs | Rule | Where |
 |---|---|---|
