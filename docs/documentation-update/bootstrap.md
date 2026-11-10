@@ -4,6 +4,16 @@ Start here. The other files in this folder are the audit (what is wrong) and the
 
 Reviewed against the repo on 2026-11-05: GrayMoon HEAD `8257e162` (`0.1.0-117-g8257e162`), GrayMoon.Desktop HEAD `7faf92c` (`0.1.0-103-g7faf92c`). Before starting, confirm both are still HEAD (`git log -1 --format="%H"` in each repo). If either has moved, re-check the specific facts this plan cites in that repo's architecture docs before trusting the verdicts below — do not re-run the whole audit for a handful of new commits.
 
+## Status on 2026-11-09
+
+Both repositories moved after the audit, and both now carry a `0.2.0` tag (GrayMoon `4b725464`, GrayMoon.Desktop `54969ce`, both 2026-11-06). HEADs are GrayMoon `ae1b748c` and GrayMoon.Desktop `c9c9c10`, 11 commits past the tag in each. The phases below were re-checked against those HEADs:
+
+- **Phase 1, screenshots: not started.** The wiki references 309 files. 17 groups of byte-identical duplicates are still referenced, and 46 files on disk are referenced by no wiki page. Five of those 46 are embedded by `GrayMoon/README.md` through raw wiki URLs (`changes-diff.png`, `changes-preview.png`, `dependencies.png`, `workspace2-actions-running.png`, `workspace2-repositories-on-main.png`), so they must stay.
+- **Phase 2, READMEs and indexes: done, except the decision below.** `GrayMoon/README.md` was rewritten as a product page rather than the 11-section developer outline; build, test and layout stay in `GrayMoon/CLAUDE.md`. `GrayMoon.Release/README.md` is rewritten (uncommitted in that repo). The Desktop README clone path, tag sample and bridge sentence are fixed. Desktop architecture `01` and both architecture indexes say 13 commands and list Claude and Codex. The baseline hashes in both architecture indexes were moved to the current HEADs on 2026-11-09. `## Recent GrayMoon changes` has 250 bullets and still grows.
+- **Phase 3, wiki: text done, images open.** The five stale pages are corrected, the **Create PRs...** label is gone (the remaining "Create PRs" are phase names, which the plan allows), "GrayMoon does not merge for you" is gone, and the seven missing topics each have a page or section (`AI-Commit-and-Pull-Request-Text.md`, `Desktop.md`, and sections on `Workspace-Features.md`, `App-Workspaces.md`, `Workspace-Repositories.md`). Open: the screenshot consolidation above, and the `0.1.0-upstream-fix.261` version sample on `Shared-Chrome.md`.
+- **Phase 4, docs/todo: done.** The wiki bullet was removed from `GrayMoon/docs/todo/defects/push-package-wait-and-circuit-crash.md` on 2026-11-09.
+- **Phase 5, can wait:** the `GrayMoon/.cursor/README.md` rule row and the Docker and Desktop database paths in `GrayMoon/CLAUDE.md` were done on 2026-11-09. The root `C:\Workspace\GrayMoon\README.md` is still absent.
+
 ## Order of work
 
 Do the phases in this order. Each later phase assumes the one before it is either done or deliberately deferred to "Can wait".

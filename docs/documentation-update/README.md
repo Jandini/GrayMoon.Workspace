@@ -2,7 +2,7 @@
 
 This folder is the work plan for the GrayMoon 0.2.0 documentation pass. The product READMEs, the wiki, the architecture docs, `docs/todo`, and the code stay as they are until a developer edits them from these notes.
 
-The wiki and the public `GrayMoon/README.md` describe 0.1.0. There is no `0.2.0` git tag. Both code repos are tagged only `0.1.0` (28 Sep 2026). The comparison is current `main` after that tag:
+The wiki and the public `GrayMoon/README.md` describe 0.1.0. On the audit date there was no `0.2.0` git tag, and both code repos were tagged only `0.1.0` (28 Sep 2026). Since 2026-11-06 both carry a `0.2.0` tag; the current state of each phase is in the Status section of [bootstrap.md](bootstrap.md). The comparison is current `main` after that tag:
 
 - GrayMoon: 117 commits, HEAD `8257e162` (`git describe`: `0.1.0-117-g8257e162`). Tag `0.1.0` is `9e5517f2`.
 - GrayMoon.Desktop: 103 commits, HEAD `7faf92c` (`0.1.0-103-g7faf92c`). Tag `0.1.0` is `0606e01f`.
