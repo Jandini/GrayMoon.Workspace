@@ -63,7 +63,7 @@ Those four pages exist in the local `GrayMoon.wiki` checkout (`Home.md`, `Gettin
 
 `## Coming soon` in the public README (Azure DevOps, MCP in Desktop) has no matching note under `GrayMoon/docs/todo/`. Nothing in `src` names Azure DevOps or an MCP server. Those bullets are unbuilt promises, not a roadmap a developer can find in the repo.
 
-Todo files present, not audited: `connector-token-failure-handling.md`, `generated-package-context-write.md`, `git-changes-large-changeset-scale.md`, `pr-description-commit-history.md`, `push-package-wait-and-circuit-crash.md`, `sqlite-synchronous-per-connection.md`, `worker-damaged-install-probe.md`.
+Todo files present, not audited: `connector-token-failure-handling.md`, `generated-package-context-write.md`, `git-changes-large-changeset-scale.md`, `pr-description-commit-history.md`, `push-package-wait-and-circuit-crash.md`, `sqlite-synchronous-per-connection.md`.
 
 ---
 
