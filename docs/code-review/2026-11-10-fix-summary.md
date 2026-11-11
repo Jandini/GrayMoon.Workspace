@@ -129,9 +129,9 @@ A second read of the branch found gaps in the fixes above. Four were fixed; the 
 | #33 / N9: move `ESIGNER_*` to the `production` environment, delete the repository secrets, run the release workflow from a branch and from a stable tag | `GrayMoon/docs/todo/defects/release-signing-secrets-and-workflow-run.md` |
 | #17 failed-integrity-check test, #23 serial-dispatch test, N4 behavioral test, follow-up tests against the old code | `GrayMoon/docs/todo/defects/review-fix-test-gaps.md` |
 | N5: a connector that answers with zero repositories | `GrayMoon/docs/todo/defects/connector-refresh-empty-answer.md` |
-| N6 (a): Worker response dropped while reconnecting | `GrayMoon/docs/todo/defects/worker-response-dropped-while-reconnecting.md` |
-| N7: silent catch blocks | `GrayMoon/docs/todo/defects/silent-catch-blocks.md` |
-| N3: convention tests cover less than the rules | `GrayMoon/docs/todo/defects/convention-test-coverage.md` |
+| N6 (a): Worker response dropped while reconnecting | Fixed 2026-11-11 on `outstanding-bugs` (logged; see `GrayMoon/docs/architecture/04-runtime-communication-and-concurrency.md`) |
+| N7: silent catch blocks | Fixed 2026-11-11 on `outstanding-bugs`; the scan now covers the connector and Feature services, the hubs and the Worker. Five Worker catches it found are listed as open in `GrayMoon/docs/todo/defects/convention-test-coverage.md` |
+| N3: convention tests cover less than the rules | Partly fixed 2026-11-11 (shared-link columns and the catch scan widened); the rest is in `GrayMoon/docs/todo/defects/convention-test-coverage.md` |
 | #21 remainder: reads through a link that leaves the repository | `GrayMoon/docs/architecture/06-developer-extension-guide.md`, "Known gaps" |
 
 ## 8. When this file is deleted
