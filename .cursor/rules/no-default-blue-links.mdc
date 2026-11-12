@@ -11,5 +11,7 @@ Global `.table tbody td a:not(.badge)` in `app.css` forces `--accent-blue` on ev
 
 - Every new badge, chip, button-like anchor, icon link, or grid column text link that uses `<a>` must set its own `color` (white / white-ish on dark grids, or white on colored badges) and `text-decoration: none`.
 - The override must win over `.table tbody td a:not(.badge)` (higher specificity, e.g. `.actions-table td a.actions-workflow-link` or `a:not(.badge)`, with `!important` when that global rule uses it).
+- The override must cover `:hover` as well. `.table tbody td a:not(.badge):hover` is a separate global rule with higher specificity than a plain `td a.some-link` override, so a link that is white at rest still turns blue on hover. When the link text sits in a `<strong>` (white through `.table tbody td strong`), only the hover underline turns blue, because the underline takes the color of the `<a>`. Set `color` on the `:hover` rule too (example: `.repositories-table td a.repo-link:hover` in `WorkspaceRepositories.razor.css`).
+- Check hover, not only the resting state: text and underline must both stay white / white-ish.
 - Check a new link visually in Workspace Repositories, Repositories, and Actions grid rows before finishing: badge text and column text links must not be default blue.
 - Do not rely on inherited or default `a` colors.
