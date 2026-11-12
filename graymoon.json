@@ -1,11 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
   "workspace": {
     "profile": {
       "type": "basic",
       "versioning": "gitVersion",
       "ci": "githubActions"
-    }
+    },
+    "reference": true
   },
   "connectors": [
     {
@@ -17,12 +18,14 @@
     {
       "name": "GrayMoon",
       "repositoryUrl": "https://github.com/Jandini/GrayMoon.git",
-      "connectorUrl": "https://github.com"
+      "connectorUrl": "https://github.com",
+      "reference": false
     },
     {
       "name": "GrayMoon.Desktop",
       "repositoryUrl": "https://github.com/Jandini/GrayMoon.Desktop.git",
-      "connectorUrl": "https://github.com"
+      "connectorUrl": "https://github.com",
+      "reference": false
     }
   ],
   "codegraph": true
