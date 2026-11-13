@@ -1,0 +1,12 @@
+---
+description: Ask before starting the app or checking UX in a browser
+alwaysApply: true
+---
+
+# Ask before running the app
+
+Do not start GrayMoon.App, GrayMoon.Desktop, the Worker, or a browser to check the UI unless the current message explicitly asks for that run or that check.
+
+If a running app or a browser check would help, ask first and wait for a yes. Ask as early as possible, before starting the app and before finishing the change around an assumed check. Do not start it "just in case" at the end of a UI change.
+
+Unit tests and builds that do not launch the app are unchanged.
