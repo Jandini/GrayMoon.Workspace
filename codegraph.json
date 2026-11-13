@@ -1,6 +1,7 @@
 {
   "include": [
     "GrayMoon/",
-    "GrayMoon.Desktop/"
+    "GrayMoon.Desktop/",
+    "GrayMoon.Logs/"
   ]
 }
