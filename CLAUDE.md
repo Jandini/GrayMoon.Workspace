@@ -53,6 +53,7 @@ The 2026-11-10 code review found recurring patterns behind its bugs. Each patter
 | Swallowed errors on "best effort" steps, fragile waits and cancellation | Always report an outcome; transient error in a wait loop is "not yet" | `GrayMoon/AGENTS.md` "Failures, cancellation and waiting" |
 | Unvalidated paths, interpolated command lines, `.git` assumed to be a directory | `GitRepositoryPathValidator`, `ArgumentList` with `--`, `git rev-parse --git-path` | `GrayMoon/AGENTS.md` "Worker: input, processes and git" |
 | Surfaces open by default (optional secret, `AllowedHosts "*"`, Origin equals Host) | Secure by default; loopback or `GRAYMOON_AllowedHosts` | `GrayMoon/AGENTS.md` "Trust boundaries (App)" |
+| Copied, dead and unreachable CSS rules; unanchored `::deep`; oversized scoped stylesheets (2026-11-13 CSS review) | One home per rule (scoped for one component, global for shared); CSS moves and dies with its markup; find elements and competing rules before a change | `GrayMoon/AGENTS.md` "CSS: scoped and global stylesheets" |
 | Desktop: case-sensitive message gate, orphaned App child, unsubscribed events, unpinned release inputs | Desktop rules | `GrayMoon.Desktop/CLAUDE.md` "Defect-prevention rules" |
 
 Rules that apply everywhere:
