@@ -1,7 +1,7 @@
 # GrayMoon - Workspace Repository Branching and Restore-from-Branch
 
 **Document:** Technical design  
-**Status:** Increment A (restore from a chosen branch) implemented 2026-11-14. Increment B (setup branch) is not built; section 6 has been corrected against the code and awaits a go-ahead.  
+**Status:** Increment A (restore from a chosen branch) implemented 2026-11-14. Increment B (setup branch) implemented 2026-11-14 in a reduced scope decided with the owner: new branch and generated files only, no commit and no push. Section 6.0 describes what was built; 6.1 to 6.4 are the original proposal and are kept for reference only.  
 **Date:** 2026-11-14  
 **Scope:** Restore from repository; conversion of an existing repository into the Workspace repository  
 
@@ -150,6 +150,20 @@ Propagate explicit `BranchName` through the Restore dialog → application opera
 
 ## 6. UX specification - convert existing repository
 
+### 6.0 As built (reduced scope)
+
+Decision (2026-11-14): GrayMoon only creates the new branch and writes the files on it. It does not commit and does not push; the user does both from Changes. Everything in 6.1 to 6.4 about the commit, the push checkbox, the clean-worktree rule, the allowlisted staging and the push outcomes is therefore not built.
+
+- **Where:** no separate dialog. The Repo tab of the Workspace modal (Add Workspace and Edit Workspace) shows a **New Branch** field under the Workspace Repository field, prefilled with `graymoon/workspace-setup`, whenever saving will set up the chosen repository: it is not the current Workspace repository and, in Add Workspace, not the repository the folder already holds (`WorkspaceModal.NeedsSetupBranch`). Edit Workspace cannot tell in advance that the folder already is the repository; the field is then shown and the name is not used.
+- **Sequence** (`WorkspaceRepositoryOperations.EnableCoreAsync`): validate the name (`WorkspaceSetupBranch.Validate`, before the lock) -> read the remote branches through the connector and refuse a name that exists (ignoring case), before anything is linked or cloned -> link and attach -> `CreateBranch` Worker command from the branch the attach checked out -> verify the Worker reports HEAD on the new branch -> write `.gitignore` and `graymoon.json` as before -> scan Changes.
+- **No new Worker command.** `CreateBranch` checks out an existing local branch of the same name instead of failing; that cannot happen here because the clone is fresh and the remote list was checked first.
+- **Not created:** for an adopted folder (nothing is written there) and for a repository with no commits (no default branch to protect; the files go on its unborn branch as before).
+- **Failures:** bad or taken name, or an unreadable branch list: nothing changes and the dialog stays open. Branch creation fails after the attach: nothing is written, and the link and the clone stay, because removing the link would make a retry adopt the folder and skip the branch.
+- **Existing files (added 2026-11-14 after the first manual test):** a file already in the Workspace folder that the repository also contains no longer stops the attach. It is kept, the repository is checked out around it, and it shows in Changes as a modification on the setup branch. An attach that an older version left half done (`.git` with the origin, no commit checked out) is finished as a fresh attach, so it still gets the setup branch and the files.
+- **Source repositories (added 2026-11-14):** the picker offers the Workspace's Source repositories with a **Source** badge. Choosing one moves it to the Workspace role in the same save; its earlier folder stays on disk, unmanaged. A failed attach leaves it a Source.
+- **Known limit:** when the remote has more branches than the connector reads (`Truncated`), only the branches that were read are checked.
+- **Tests:** `WorkspaceRepositoryOperationsTests` (order, arguments, taken name, unreadable list, invalid names, branch not checked out, empty repository, adopted folder, no setup branch, name rules, when the field is asked for).
+
 ### 6.1 When the dialog appears
 
 Show a compact **Prepare Workspace repository** dialog only when the action will convert an existing Git repository into the Workspace-role repository **and** needs to generate or modify its GrayMoon configuration. Do not display it for a no-op reattachment of a repository already holding a valid intended setup, and do not silently change established behavior of separate creation paths. Phase 0 must map Add Workspace, Edit Workspace, repository import, and Enable Workspace Repository entry points.
@@ -254,4 +268,4 @@ Increment A is implemented. Changes against this design:
 - **Worker:** after the clone (or the init path for a non-empty root) the Worker checks out `origin/<branch>` and verifies HEAD. A missing branch fails with a message; a name that is not a plain ref name (leading `-`, spaces, quotes, `..`, `@{`, `refs/`) is refused before it reaches a git argument string. `CheckoutTrackingAsync` still builds an interpolated command string, so the validation is what keeps it safe; converting it to `ArgumentList` is a separate cleanup.
 - **Tests:** `AttachWorkspaceRepositoryCommandTests` (checkout, missing branch, init path, unsafe names), `WorkspaceRepositoryOperationsTests` (branch reaches the reader and the Worker, null keeps the default, ordering).
 - **Docs:** `05-user-capability-reference.md` and `01-product-model-and-user-workflows.md` describe the new Restore behavior.
-- **Open for increment B:** section 6 is unchanged apart from the Phase 0 note above. Decisions needed before building it: where the setup-branch dialog hooks in (Enable on a folder that is not yet the repository, or also the adopt path), and whether the commit/push run as a new Worker command or compose `CreateBranch`, `StageAndCommit` and `PushRepository`.
+- **Increment B:** built in the reduced scope of section 6.0 (new branch and files, no commit, no push). The acceptance criteria in section 9 about the setup commit and the push do not apply.
