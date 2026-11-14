@@ -1,7 +1,7 @@
 # GrayMoon — `graymoon.json` v2 Stability and Read-Only State
 
 **Document type:** Technical design + staged implementation plan + AI-agent bootstrap prompt  
-**Status:** Proposed, not implemented  
+**Status:** Implemented on GrayMoon branch `gray-manifest` (uncommitted). Review corrections: the Worker already skips unchanged writes (`onlyIfChanged`, default true), so the App does not compare content itself; the policy lives in `WorkspaceManifestSchemaPolicy.KeepSchema`, applied in `WriteAuthoritativeManifestAsync` and the restore rewrite check  
 **Date:** 2026-11-14  
 **Source inspected:** `Jandini/GrayMoon` default branch (`main`), via GitHub connector. Recheck the implementation branch before editing.
 
