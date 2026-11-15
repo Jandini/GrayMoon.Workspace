@@ -33,7 +33,7 @@
       "connectorUrl": "https://github.com",
       "reference": true,
       "branch": "main",
-      "commit": "3c27e476a02d5b7eb8746c948b60c6af94496607"
+      "commit": "b32cb37f6e3ee043c3ec15638c149cb4dd1e0070"
     }
   ],
   "codegraph": true
